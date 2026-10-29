@@ -12,6 +12,8 @@
 
 0.1.2 增加 `host_reads`（当前连接实际读取过的特征／描述符名称列表）、`tx_completed`（当前连接 BLE 栈报告成功的输入通知数）、`tx_errors`（通知提交或完成的错误事件数）。连接重置时清零；本地启动自检不计入 `host_reads`。成功计数不代表主机 HID 驱动或应用接受了输入，错误计数也不作为自动重试依据。
 
+0.1.4 增加可选诊断字段 `ble.encrypted`、`ble.authenticated` 和 `ble.security_status`。前两项反映设备已核实的链路加密／MITM 认证状态；`security_status` 是最近一次 ENC_CHANGE 事件的 NimBLE 返回码，`-1` 表示本次连接尚未收到该事件。已绑定重连也会在延迟检查中核实实际安全状态，因此 `security_status = -1` 本身不等于认证失败。`ready` 仍同时要求连接、加密、认证和当前模式的通知订阅；不能仅凭 `bonded` 或某一状态码决定能否输入。
+
 ```json
 {"v":1,"id":"unique-request-id","session":"从最新状态获取","expires_at":1790000000000,"type":"type_text","payload":{"text":"Example!","press_enter":false}}
 ```

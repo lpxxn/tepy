@@ -74,6 +74,17 @@
         "bonded": {
           "type": "boolean"
         },
+        "encrypted": {
+          "type": "boolean"
+        },
+        "authenticated": {
+          "type": "boolean"
+        },
+        "security_status": {
+          "type": "integer",
+          "minimum": -1,
+          "maximum": 65535
+        },
         "pairing_open": {
           "type": "boolean"
         },

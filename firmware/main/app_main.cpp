@@ -132,6 +132,9 @@ class Application {
         cJSON_AddBoolToObject(ble, "connected", ble_.connected());
         cJSON_AddBoolToObject(ble, "ready", ble_.ready());
         cJSON_AddBoolToObject(ble, "bonded", ble_.bonded());
+        cJSON_AddBoolToObject(ble, "encrypted", ble_.encrypted());
+        cJSON_AddBoolToObject(ble, "authenticated", ble_.authenticated());
+        cJSON_AddNumberToObject(ble, "security_status", ble_.security_status());
         cJSON_AddBoolToObject(ble, "pairing_open", ble_.pairing_open());
         cJSON_AddBoolToObject(ble, "passkey_pending", ble_.pairing_pending());
         cJSON_AddBoolToObject(ble, "pnp_id_present", ble_.pnp_present());

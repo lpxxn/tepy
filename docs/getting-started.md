@@ -243,9 +243,9 @@ hidutil list | grep -Ei 'Tepy|303a|12346|4001|16385'
    idf.py -p COM7 flash monitor
    ```
 
-2. 当前代码启动日志应显示 `App version: 0.1.3`，以及 `ble: HID profile ready: PnP=... report=... boot=... protocol=... bytes=8 external=none security=encrypted`。已有 sdkconfig 可继续使用，无需删除配置文件。
+2. 当前代码启动日志应显示 `App version: 0.1.5`，以及 `ble: HID profile ready: PnP=... report=... boot=... protocol=... bytes=8 external=none security=encrypted`。已有 sdkconfig 可继续使用，无需删除配置文件。
 3. 在 Mac 蓝牙设置中忽略旧的 Tepy 设备；在 ESP32 管理网页点击“清除绑定”，再开启配对窗口重新配对。此操作只清除蓝牙绑定，保留 Wi-Fi、MQTT 和管理口令。
-4. 查询 MQTT `status`，当前版本应看到 `firmware: "0.1.3"`。以下诊断字段自 0.1.2 起提供：
+4. 查询 MQTT `status`，当前版本应看到 `firmware: "0.1.5"`。以下诊断字段自 0.1.2 起提供：
 
    | 字段 | 含义 |
    | --- | --- |
@@ -309,3 +309,20 @@ log show --last 10m --info --debug --style compact \
 在固件目录执行 `idf.py -p COM7 flash monitor` 升级，或在项目根目录执行 `.\tools\dev\idf.ps1 -Port COM7 flash monitor`。先保留已有绑定验证重连，核对版本为 0.1.3，并在 Mac 上确认 `hidutil list` 出现 Tepy 的键盘记录。若需验证首次配对，再在双方清除 Tepy 的绑定后重新配对，管理网页提前打开以便及时提交配对码。
 
 本次已烧录 0.1.3，并通过 SSH 确认目标 Mac 的 `hidutil` 出现 Tepy 的 `UsagePage=1 / Usage=6` 键盘设备及 AppleUserHIDEventDriver；用户确认键盘设置助理已弹出。此时按提示通过 MQTT 依次发送 `key z`、`key /`，随后选 ANSI，操作见 [配对与布局识别](#配对码与按-shift-旁边的键有什么区别)。完成后继续普通文字测试，再进行睡眠测试。
+
+2026-10-29，用户随后确认普通文字、睡眠唤醒和 `unlock --wait 3 --enter` 解锁三个步骤均正常，基本使用流程已实测通过。长期使用前可继续验证过夜睡眠、ESP32 断电重启及网络重连，结果分别记录在 [实机验收清单](testing.md#目标-mac-验收)。
+
+### 0.1.4：断电后已连接但输入尚未就绪
+
+0.1.3 在后续断电复测中出现已绑定、已连接，但 `ready=false`、通知未订阅。Mac 日志显示约每 30 秒重连，ESP32 则在实际已加密并认证时报告 SMP 超时。0.1.4 调整已绑定连接的安全请求时机，并按当前连接的真实加密、认证和绑定状态处理该超时；仍要求实际通知订阅，未降低输入的安全条件。
+
+0.1.4 的三次 USB 硬件复位验证通过，但用户真实拔电复测仍出现已加密、未订阅，因此继续修正到 0.1.5：NimBLE 的安全／订阅恢复可能早于 CONNECT，后到的 CONNECT 不得再次清空这些状态。当前已烧录 0.1.5，Wi-Fi、MQTT、管理口令及蓝牙绑定保留；串口已直接确认早到的恢复状态在 CONNECT 后保留。用户再次真实拔电后，已确认 `ready / encrypted / authenticated / report_subscribed` 均为 true，普通文字输入正常，无需重新配对。
+
+断电恢复检查步骤：
+
+1. 保留现有绑定，拔掉 ESP32 电源后重新插入，等待约 10 秒。
+2. 查询 `status`，核对固件为 0.1.5，`connected / encrypted / authenticated / ready` 为 true，当前 `report` 模式的 `report_subscribed` 为 true。
+3. `host_reads` 可能只有设备信息；已绑定主机可以使用缓存，并由 NimBLE 恢复通知订阅，不要求每次重新读取整个 Report Map。
+4. 在 Mac 文本编辑器中执行 `type` 测试普通文字，通过后再测唤醒和解锁。
+
+`security_status` 是最近一次 ENC_CHANGE 返回码，`-1` 仅表示本次连接尚未收到该事件；延迟检查也会核实实际链路安全状态。判断能否发送以 `ready` 及加密／认证／订阅字段为准。若仍失败，保留状态和从启动开始的 `HID link security`、`HID subscription`、`HID disconnected` 日志，不反复尝试登录密码。

@@ -18,6 +18,7 @@
 
 extern "C" void ble_store_config_init(void);
 namespace tepy {
+static_assert(hid::security_timeout == BLE_HS_ETIMEOUT);
 BleKeyboard *BleKeyboard::instance_ = nullptr;
 namespace {
 struct MbufDelete {
@@ -47,6 +48,7 @@ esp_err_t BleKeyboard::init(std::string name) {
     if (result != ESP_OK)
         return result;
     ble_npl_event_init(&control_event_, control, this);
+    ble_npl_callout_init(&security_callout_, nimble_port_get_dflt_eventq(), security_check, this);
     ble_hs_cfg.sync_cb = sync;
     ble_hs_cfg.reset_cb = reset;
     ble_hs_cfg.sm_io_cap = BLE_SM_IO_CAP_KEYBOARD_ONLY;
@@ -72,7 +74,11 @@ void BleKeyboard::reset(int) {
     auto &self = *instance_;
     self.synced_ = false;
     self.connected_ = false;
+    self.connection_ = BLE_HS_CONN_HANDLE_NONE;
     self.encrypted_ = false;
+    self.authenticated_ = false;
+    self.security_status_ = -1;
+    ble_npl_callout_stop(&self.security_callout_);
     self.report_subscribed_ = false;
     self.boot_subscribed_ = false;
     self.protocol_ = hid::report_protocol;
@@ -175,31 +181,30 @@ int BleKeyboard::gap(ble_gap_event *event, void *arg) {
             self.advertise();
             break;
         }
-        self.connection_ = event->connect.conn_handle;
-        self.connected_ = true;
-        self.encrypted_ = false;
-        self.protocol_ = hid::report_protocol;
-        ++self.epoch_;
-        self.report_subscribed_ = false;
-        self.boot_subscribed_ = false;
-        self.reset_profile();
-        ble_gap_conn_desc desc{};
-        if (ble_gap_conn_find(self.connection_, &desc) != 0)
+        if (!self.adopt_connection(event->connect.conn_handle, "connect"))
             break;
-        self.refresh_bond();
-        bool allowed = self.bonded_ ? desc.peer_id_addr.type == self.peer_.type &&
-                                          std::memcmp(desc.peer_id_addr.val, self.peer_.val, 6) == 0
-                                    : self.pairing_open();
-        if (!allowed) {
-            ble_gap_terminate(self.connection_, BLE_ERR_REM_USER_CONN_TERM);
+        ESP_LOGI("ble",
+                 "HID GAP connected handle=%u encrypted=%d authenticated=%d report=%d boot=%d",
+                 event->connect.conn_handle, int(self.encrypted_.load()),
+                 int(self.authenticated_.load()), int(self.report_subscribed_.load()),
+                 int(self.boot_subscribed_.load()));
+        if (self.encrypted_ && self.authenticated_)
             break;
-        }
-        ble_gap_security_initiate(self.connection_);
+        // Let a bonded central restore its LTK first. Sending a Security Request
+        // immediately can leave a redundant SMP procedure that times out at 30s.
+        if (self.bonded_)
+            ble_npl_callout_reset(&self.security_callout_, ble_npl_time_ms_to_ticks32(1000));
+        else
+            self.request_security();
         break;
     }
     case BLE_GAP_EVENT_DISCONNECT:
+        ESP_LOGI("ble", "HID disconnected reason=%d", event->disconnect.reason);
+        ble_npl_callout_stop(&self.security_callout_);
         self.connected_ = false;
         self.encrypted_ = false;
+        self.authenticated_ = false;
+        self.security_status_ = -1;
         self.protocol_ = hid::report_protocol;
         self.report_subscribed_ = false;
         self.boot_subscribed_ = false;
@@ -215,31 +220,40 @@ int BleKeyboard::gap(ble_gap_event *event, void *arg) {
         self.advertise();
         break;
     case BLE_GAP_EVENT_ENC_CHANGE: {
+        if (!self.adopt_connection(event->enc_change.conn_handle, "security"))
+            break;
         ble_gap_conn_desc desc{};
         const bool found = ble_gap_conn_find(event->enc_change.conn_handle, &desc) == 0;
+        self.security_status_ = event->enc_change.status;
         ESP_LOGI("ble", "HID link security status=%d encrypted=%d authenticated=%d bonded=%d",
                  event->enc_change.status, int(found && desc.sec_state.encrypted),
                  int(found && desc.sec_state.authenticated), int(found && desc.sec_state.bonded));
-        if (event->enc_change.status == 0 && found && desc.sec_state.encrypted &&
-            desc.sec_state.authenticated) {
+        if (hid::accept_security_event(event->enc_change.status, found, desc.sec_state.encrypted,
+                                       desc.sec_state.authenticated, desc.sec_state.bonded)) {
+            ble_npl_callout_stop(&self.security_callout_);
             self.encrypted_ = true;
+            self.authenticated_ = true;
             self.passkey_pending_ = false;
             self.pair_until_ = 0;
             self.refresh_bond();
         } else {
             self.encrypted_ = false;
+            self.authenticated_ = false;
             ble_gap_terminate(self.connection_, BLE_ERR_AUTH_FAIL);
         }
         break;
     }
     case BLE_GAP_EVENT_SUBSCRIBE:
+        if (!self.adopt_connection(event->subscribe.conn_handle, "subscription"))
+            break;
         if (event->subscribe.attr_handle == self.report_handle_)
             self.report_subscribed_ = event->subscribe.cur_notify != 0;
         if (event->subscribe.attr_handle == self.boot_handle_)
             self.boot_subscribed_ = event->subscribe.cur_notify != 0;
-        ESP_LOGI("ble", "HID subscription handle=%u report=%d boot=%d mode=%u",
-                 event->subscribe.attr_handle, int(self.report_subscribed_.load()),
-                 int(self.boot_subscribed_.load()), unsigned(self.protocol_.load()));
+        ESP_LOGI("ble", "HID subscription handle=%u reason=%u report=%d boot=%d mode=%u",
+                 event->subscribe.attr_handle, event->subscribe.reason,
+                 int(self.report_subscribed_.load()), int(self.boot_subscribed_.load()),
+                 unsigned(self.protocol_.load()));
         break;
     case BLE_GAP_EVENT_NOTIFY_TX:
         if (!event->notify_tx.indication && (event->notify_tx.attr_handle == self.report_handle_ ||
@@ -266,6 +280,59 @@ int BleKeyboard::gap(ble_gap_event *event, void *arg) {
         break;
     }
     return 0;
+}
+bool BleKeyboard::adopt_connection(uint16_t handle, const char *source) {
+    // ESP-IDF defers CONNECT until Read Remote Version completes. Encryption,
+    // subscription restoration and GATT access can precede that callback.
+    // Initialize once for the actual link, never again for its late CONNECT.
+    if (connected_ && connection_ == handle)
+        return true;
+    ble_gap_conn_desc desc{};
+    if (handle == BLE_HS_CONN_HANDLE_NONE || ble_gap_conn_find(handle, &desc) != 0)
+        return false;
+    refresh_bond();
+    const bool allowed = bonded_ ? desc.peer_id_addr.type == peer_.type &&
+                                       std::memcmp(desc.peer_id_addr.val, peer_.val, 6) == 0
+                                 : pairing_open();
+    if (!allowed) {
+        ble_gap_terminate(handle, BLE_ERR_REM_USER_CONN_TERM);
+        return false;
+    }
+    ble_npl_callout_stop(&security_callout_);
+    ++epoch_;
+    report_subscribed_ = false;
+    boot_subscribed_ = false;
+    security_status_ = -1;
+    reset_profile();
+    connection_ = handle;
+    encrypted_ = desc.sec_state.encrypted;
+    authenticated_ = desc.sec_state.authenticated;
+    connected_ = true;
+    ESP_LOGI("ble", "HID attach handle=%u source=%s encrypted=%d authenticated=%d", handle, source,
+             int(encrypted_.load()), int(authenticated_.load()));
+    return true;
+}
+void BleKeyboard::request_security() {
+    const int rc = ble_gap_security_initiate(connection_);
+    if (rc != 0 && rc != BLE_HS_EALREADY && rc != BLE_HS_ENOTCONN) {
+        ESP_LOGW("ble", "HID security request failed status=%d", rc);
+        security_status_ = rc;
+        ble_gap_terminate(connection_, BLE_ERR_AUTH_FAIL);
+    }
+}
+void BleKeyboard::security_check(ble_npl_event *event) {
+    auto &self = *static_cast<BleKeyboard *>(ble_npl_event_get_arg(event));
+    if (!self.connected_)
+        return;
+    ble_gap_conn_desc desc{};
+    if (ble_gap_conn_find(self.connection_, &desc) != 0)
+        return;
+    if (desc.sec_state.encrypted && desc.sec_state.authenticated) {
+        self.encrypted_ = true;
+        self.authenticated_ = true;
+        return;
+    }
+    self.request_security();
 }
 void BleKeyboard::queue_control() {
     if (synced_)
@@ -297,9 +364,11 @@ bool BleKeyboard::provide_passkey(std::string_view value) {
 void BleKeyboard::control(ble_npl_event *event) {
     auto &self = *static_cast<BleKeyboard *>(ble_npl_event_get_arg(event));
     if (self.request_clear_.exchange(false)) {
+        ble_npl_callout_stop(&self.security_callout_);
         self.pair_until_ = 0;
         self.passkey_pending_ = false;
         self.encrypted_ = false;
+        self.authenticated_ = false;
         if (self.connected_)
             ble_gap_terminate(self.connection_, BLE_ERR_REM_USER_CONN_TERM);
         ble_store_clear();

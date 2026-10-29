@@ -12,7 +12,16 @@ inline constexpr uint8_t report_protocol = 1;
 inline constexpr uint16_t keyboard_appearance = 0x03c1;
 inline constexpr uint16_t vendor_id = 0x303a;
 inline constexpr uint16_t product_id = 0x4001;
-inline constexpr uint16_t device_version = 0x0103;
+inline constexpr uint16_t device_version = 0x0105;
+
+// NimBLE can time out a redundant Security Request after a bonded central has
+// already restored encryption. Never waive encryption or MITM authentication.
+inline constexpr int security_timeout = 13; // Checked against BLE_HS_ETIMEOUT in ble.cpp.
+constexpr bool accept_security_event(int status, bool found, bool encrypted, bool authenticated,
+                                     bool bonded) {
+    return found && encrypted && authenticated &&
+           (status == 0 || (status == security_timeout && bonded));
+}
 
 // DIS PnP ID is exactly seven binary bytes, serialized with an explicit length.
 inline constexpr std::array<uint8_t, 7> pnp_value{2,

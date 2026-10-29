@@ -104,6 +104,8 @@ int BleKeyboard::access(uint16_t connection, uint16_t handle, ble_gatt_access_ct
     auto &self = *binding.owner;
     const auto attribute = binding.attribute;
     const auto index = static_cast<size_t>(attribute);
+    if (connection != BLE_HS_CONN_HANDLE_NONE && !self.adopt_connection(connection, "gatt"))
+        return BLE_ATT_ERR_INSUFFICIENT_AUTHEN;
     if (context->op == BLE_GATT_ACCESS_OP_READ_CHR || context->op == BLE_GATT_ACCESS_OP_READ_DSC) {
         std::lock_guard lock(self.profile_mutex_);
         const auto value = self.profile_.read(attribute);

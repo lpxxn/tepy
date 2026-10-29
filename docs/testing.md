@@ -1,5 +1,7 @@
 # 测试与验证记录
 
+当前固件版本为 **0.1.5**。2026-10-29，0.1.3 的 HID 注册已通过 SSH 确认，用户确认普通文字输入、睡眠唤醒、唤醒后解锁正常；随后发现断电重连失败。0.1.5 修正安全请求竞态及冷启动回调顺序后，用户真实拔电复测确认自动恢复加密、认证、Report 订阅和 `ready`，普通文字输入正常，无需重新配对。各项结果见下表与版本记录。
+
 ## 自动化
 
 先构建一次固件以取得 managed cJSON，再使用同一个 Python 安装并运行测试依赖：
@@ -17,20 +19,26 @@ HID 描述符回归测试编译同一 ESP-IDF 源码中的真实 `esp_hid_common
 
 固件构建：`tools/dev/idf.ps1 build`。构建通过仅证明编译与链接，不等于蓝牙唤醒实测通过。
 
-## 目标 Mac 验收（待执行）
+## 目标 Mac 验收
 
-| 场景 | 预期 |
-| --- | --- |
-| 首次配对 / 错误配对码 | 正确码绑定；错误码不绑定 |
-| 全部 ASCII 32–126、连续重复字符 | ABC 美式布局逐字一致，特别检查 +、=、引号、反斜线 |
-| 组合键 | Command、Option、Control、Shift 正确 |
-| 锁屏、短时睡眠、过夜睡眠 | wake 后界面可用，等待后仅输入一次 |
-| ESP32 重启 / Mac 蓝牙开关 | 绑定保留，可恢复连接 |
-| 输入中 BLE 或 MQTT 断开 | 中止，不在重连后继续输入 |
-| Broker / 路由器重启 | 自动恢复，session 改变，旧命令不执行 |
-| retained / 重复 / 过期 / 非法消息 | 拒绝，不产生按键 |
-| 错误 Wi-Fi / NTP 不可达 | 可恢复热点；未校时拒绝动作 |
-| OTA 正常 / 中断 / 错误镜像 | 正常更新，错误不切换，启动失败回滚 |
+| 场景 | 预期 | 实机结果 |
+| --- | --- | --- |
+| 配对与 HID 注册 | 绑定后出现可用键盘设备 | 已通过；SSH 确认 HID 记录，用户确认键盘设置助理出现 |
+| 普通文字输入 | `type` 输入内容出现在文本编辑器 | 0.1.3、0.1.5 用户确认通过 |
+| 睡眠唤醒 | `wake` 后 Mac 亮屏 | 0.1.3 用户确认通过；睡眠时长未记录 |
+| 唤醒后解锁 | `unlock --wait 3 --enter` 唤醒、等待、输入密码并回车 | 0.1.3 用户确认通过 |
+| 错误配对码 / 重复配对 | 错误码不绑定，多次正确配对可恢复 | 待专项验收 |
+| 全部 ASCII 32–126、连续重复字符 | ABC 美式布局逐字一致，特别检查 +、=、引号、反斜线 | 主机自动测试通过；完整实机字符集待验 |
+| 组合键 | Command、Option、Control、Shift 正确 | 待实机专项验收 |
+| 过夜睡眠 | 长时间睡眠后仍可唤醒及输入 | 待验收 |
+| ESP32 USB 硬件复位 | 绑定保留，通知订阅与 Mac HID 自动恢复 | 0.1.4 三次通过，各次观察超过 30 秒 |
+| ESP32 物理断电再上电 | 自动恢复并可再次输入 | 0.1.3 / 0.1.4 失败；0.1.5 用户实测通过，无需重新配对 |
+| Mac 蓝牙开关 | 可恢复连接 | 待专项验收 |
+| 输入中 BLE 或 MQTT 断开 | 中止，不在重连后继续输入 | 主机自动测试通过；故障注入实测待验 |
+| Broker / 路由器重启 | 自动恢复，session 改变，旧命令不执行 | 待实机验收 |
+| retained / 重复 / 过期 / 非法消息 | 拒绝，不产生按键 | 主机自动测试通过；实机专项待验 |
+| 错误 Wi-Fi / NTP 不可达 | 可恢复热点；未校时拒绝动作 | 待实机专项验收 |
+| OTA 正常 / 中断 / 错误镜像 | 正常更新，错误不切换，启动失败回滚 | 待实机验收 |
 
 先在文本编辑器测试，锁屏使用临时测试内容。只在人工确认输入焦点后验证密码。不要自动重复密码尝试。`sent` 不证明解锁成功。
 
@@ -45,7 +53,7 @@ HID 描述符回归测试编译同一 ESP-IDF 源码中的真实 `esp_hid_common
 - 内置网页 JavaScript 语法检查通过；真实浏览器与设备 API 的交互待验。
 - 锁定依赖：cJSON 1.7.19~2、mDNS 1.14.1、MQTT 1.1.0，详见 `firmware/dependencies.lock`。
 
-未执行开发板刷写、实际 Wi-Fi / BLE 射频共存、目标 Mac 配对与睡眠唤醒、真实 Broker TLS 和 OTA 断电回滚。这些结果必须在硬件上补验，不能以主机测试替代。OTA 校验采用 IDF 镜像校验，不提供发布者签名验证。
+截至上述 2026-10-28 本机验证，尚未执行开发板刷写、实际 Wi-Fi / BLE 射频共存、目标 Mac 配对与睡眠唤醒、真实 Broker TLS 和 OTA 断电回滚。后续已完成的硬件验证见下文 0.1.3 记录，剩余项目见上表。OTA 校验采用 IDF 镜像校验，不提供发布者签名验证。
 
 ### 0.1.1 HID 修复回归
 
@@ -91,4 +99,36 @@ VendorID  ProductID  UsagePage  Usage  Transport             Product
 
 `hidutil` 同时列出 Tepy 的 IOHIDUserDevice 和 AppleUserHIDEventService，驱动为 AppleUserHIDEventDriver；BTLEServer 日志先记录 `peerDidCompletePairing`，随后记录 IOHIDUserDevice `Start`。用户也确认 Mac 已弹出要求按左 Shift 右侧按键的键盘设置助理。**HID 键盘注册实测通过。** 首次配对过程中有一次 Confirm Value 校验失败，随后重新配对完成；尚未进行重复配对稳定性验收。
 
-键盘设置助理使用 MQTT 单键 `z`、`/` 完成 ANSI 布局识别，具体操作见 [配对与布局识别](getting-started.md#配对码与按-shift-旁边的键有什么区别)。实际文字、完整 ASCII、组合键、锁屏与睡眠唤醒仍需分别验收，不能由 HID 注册成功推定通过。
+键盘设置助理使用 MQTT 单键 `z`、`/` 完成 ANSI 布局识别，具体操作见 [配对与布局识别](getting-started.md#配对码与按-shift-旁边的键有什么区别)。
+
+随后用户按“普通文字输入 → 睡眠后 `wake` → `unlock --wait 3 --enter`”三个步骤测试，并明确反馈“都试过了，没有问题”。据此记录普通文字输入、睡眠唤醒及唤醒后密码输入解锁实测通过；这是用户对 Mac 实际界面结果的确认，不是依据 MQTT `sent` 推断。未采集或保存登录密码。
+
+本次未记录睡眠持续时间和重复次数，不能据此记为过夜睡眠或长期稳定性通过；完整 ASCII、组合键、断线恢复和 OTA 仍按上表专项验收。
+
+### 0.1.4 断电重连修正
+
+用户随后实测 0.1.3 断电再上电：Wi-Fi、MQTT、绑定均保留，但 `ready = false`，Report / Boot 订阅均为 false，输入被正确拒绝。直接读取 Mac 日志发现约每 30 秒重连一次；ESP32 串口同时记录 `HID link security status=13 encrypted=1 authenticated=1 bonded=1`，随后固件主动以认证失败结束连接。
+
+这是重连安全请求的竞态：连接实际已经安全，冗余的 SMP 安全过程仍可能超时。此前代码将所有非零返回码视为链路不安全，导致主动断开循环。[ESP-IDF BLE UART 官方移植说明](https://github.com/espressif/esp-idf/blob/master/examples/bluetooth/common/ble_uart/PORTING.md#9-faq) 也记录了同样的 `status=13 / encrypted=1 / bonded=1` 现象。
+
+0.1.4 延迟已绑定连接的主动安全请求，优先检查 Mac 已恢复的加密／认证；对仍已加密、已认证、已绑定的当前连接单独处理超时。未加密、未认证、未绑定或 Confirm Value 校验失败等情况仍拒绝。通知订阅必须通过真实写入／绑定恢复事件确认，不跳过订阅检查。
+
+427 项核心检查、5 份 Schema、7 个样例、3 组交叉向量、10 项 Python 客户端测试通过；包含超时不能绕过加密、MITM 认证和绑定约束的回归。固件构建和 COM7 烧录校验通过，NVS 配置及绑定保留。硬件重启与真实断电复测结果继续记录在本节。
+
+使用 ESP-IDF 官方 monitor 的复位功能进行了三次实际 USB 硬件复位，串口均确认 `USB_UART_CHIP_RESET` 及 0.1.4 启动。三次均从绑定恢复 Report 输入订阅，串口出现 `HID subscription handle=38 reason=3 report=1`，设备启动后约 2.3–2.6 秒恢复订阅；Mac 随后自动恢复 Tepy 键盘与 AppleUserHIDEventDriver。每次均观察超过 30 秒，未再出现原先由 `status=13` 引起的主动断开循环。后两次还直接记录到 `status=0 encrypted=1 authenticated=1 bonded=1`。未清除绑定或重新输入配对码。
+
+上述结果是硬件复位验证，不等同于物理断电验收。随后用户真实拔电复测确认：0.1.4 的 `encrypted / authenticated` 为 true，但 `security_status = -1`、两种通知订阅仍为 false、`ready = false`。因此 0.1.4 未通过物理断电恢复验收。
+
+### 0.1.5 冷启动事件顺序修正
+
+继续检查实际 SDK 源码确认：外设建立物理连接后，NimBLE 发起 Read Remote Version，完成后才发送应用 CONNECT 回调；在此之前，安全恢复、CCCD 恢复和 GATT 访问均可能已发生。此前 CONNECT 无条件清空安全、订阅、协议和读取记录；0.1.4 新增的安全回调当前连接检查还会丢弃尚未收到 CONNECT 时到达的加密事件，造成冷启动时应用状态与实际链路不一致。
+
+0.1.5 在 CONNECT、安全、订阅或实际 GATT 访问首次到达时，先查询实际连接并验证目标身份，再初始化一次连接状态；同一连接后到的 CONNECT 保留已有状态。订阅仍来自 NimBLE 实际写入或恢复事件，不从绑定状态推定，不修改 SDK 或绕过加密／认证。新增 `HID attach ... source=...` 和 CONNECT 状态日志用于核对事件顺序。
+
+427 项核心检查、5 份 Schema、7 个样例、3 组交叉向量与 10 项客户端测试通过。这些测试覆盖现有安全策略及协议，不将其当作冷启动事件顺序已通过实机验证；物理拔电结果待补充。
+
+0.1.5 编译及 COM7 烧录校验通过。启动后串口直接观察到：安全恢复发生于 2231 ms，Report 订阅恢复于 2248 ms，CONNECT 回调于 2290 ms 才到达，此时 `encrypted=1 authenticated=1 report=1` 已保留。SSH 同时确认 Mac 已创建 Tepy 键盘。该实机顺序验证了晚到 CONNECT 不能重新清空状态。
+
+退出 monitor 后，用户保持原绑定并再次真实拔电上电，提供了 0.1.5 的 MQTT 状态：`connected / ready / bonded / encrypted / authenticated / report_subscribed` 均为 true，`security_status = 0`，`boot_subscribed = false`（当前为 Report 模式，符合预期）。随后执行 `type`，回复 `sent`，并明确确认“好了”。据此记录真实断电自动恢复及普通文字输入实测通过；没有清除绑定或重新配对。SSH 也观察到本次断电后 Mac 自动重新创建 Tepy 的 IOHIDUserDevice。
+
+本次只记录了一次 0.1.5 物理断电成功，不据此推定多次冷启动、过夜睡眠或全部故障恢复均通过；这些项目继续单独验收。

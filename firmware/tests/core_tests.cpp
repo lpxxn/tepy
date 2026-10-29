@@ -102,7 +102,7 @@ void hid_profile_tests() {
     check(inputs == 2 && outputs == 2, "report and boot keyboard formats present");
     std::free(parsed->reports);
     std::free(parsed);
-    const uint8_t expected_pnp[]{2, 0x3a, 0x30, 0x01, 0x40, 0x03, 0x01};
+    const uint8_t expected_pnp[]{2, 0x3a, 0x30, 0x01, 0x40, 0x05, 0x01};
     check(std::memcmp(expected_pnp, hid::pnp_value.data(), 7) == 0,
           "PnP ID is little endian seven-byte wire data");
     check(hid::pnp_value.size() == 7, "PnP is exactly seven raw bytes without a terminator");
@@ -119,11 +119,30 @@ void hid_profile_tests() {
     check(!hid::input_ready(true, false, hid::report_protocol, true, true),
           "unencrypted profile is not ready");
     check(!hid::input_ready(true, true, 2, true, true), "unknown protocol is not ready");
+    check(hid::accept_security_event(0, true, true, true, false),
+          "fresh authenticated pairing accepted");
+    check(hid::accept_security_event(0, true, true, true, true), "bonded encryption restored");
+    check(hid::accept_security_event(13, true, true, true, true),
+          "redundant SMP timeout preserves an authenticated encrypted bonded link");
+    check(!hid::accept_security_event(13, true, false, true, true),
+          "timeout cannot waive encryption");
+    check(!hid::accept_security_event(13, true, true, false, true),
+          "timeout cannot waive MITM authentication");
+    check(!hid::accept_security_event(13, true, true, true, false),
+          "unbonded timeout is a failure");
+    check(!hid::accept_security_event(13, false, true, true, true),
+          "stale connection cannot waive timeout");
+    check(!hid::accept_security_event(1028, true, true, true, true),
+          "confirm mismatch remains fatal");
+    check(!hid::accept_security_event(0, true, true, false, true),
+          "encrypted unauthenticated pairing rejected");
+    check(!hid::accept_security_event(0, true, false, true, true),
+          "unencrypted success event rejected");
 }
 void gatt_contract_tests() {
     using A = hid::Attribute;
     hid::Profile profile;
-    profile.identity("Tepy-test", "0.1.3");
+    profile.identity("Tepy-test", "0.1.5");
     const std::array<uint8_t, 4> info{0x11, 0x01, 0, 3};
     const auto equals = [](std::span<const uint8_t> left, std::span<const uint8_t> right) {
         return left.size() == right.size() && std::equal(left.begin(), left.end(), right.begin());

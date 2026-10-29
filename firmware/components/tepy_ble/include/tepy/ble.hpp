@@ -15,13 +15,16 @@ class BleKeyboard final : public Keyboard {
   public:
     esp_err_t init(std::string name);
     bool ready() const override {
-        return hid::input_ready(connected_, encrypted_, protocol_, report_subscribed_,
-                                boot_subscribed_);
+        return hid::input_ready(connected_, encrypted_ && authenticated_, protocol_,
+                                report_subscribed_, boot_subscribed_);
     }
     bool send(const Report &) override;
     void wait(unsigned milliseconds) override;
     bool connected() const { return connected_; }
     bool bonded() const { return bonded_; }
+    bool encrypted() const { return encrypted_; }
+    bool authenticated() const { return authenticated_; }
+    int security_status() const { return security_status_; }
     bool pairing_pending() const { return passkey_pending_; }
     bool pairing_open() const;
     uint32_t epoch() const { return epoch_; }
@@ -44,6 +47,9 @@ class BleKeyboard final : public Keyboard {
     static int gap(ble_gap_event *event, void *arg);
     static void host_task(void *);
     static void control(ble_npl_event *);
+    static void security_check(ble_npl_event *);
+    void request_security();
+    bool adopt_connection(uint16_t handle, const char *source);
     static int access(uint16_t, uint16_t, ble_gatt_access_ctxt *, void *);
     static void registered(ble_gatt_register_ctxt *, void *);
     esp_err_t register_services();
@@ -53,6 +59,7 @@ class BleKeyboard final : public Keyboard {
     void queue_control();
     std::string name_;
     ble_npl_event control_event_{};
+    ble_npl_callout security_callout_{};
     ble_addr_t peer_{};
     uint16_t report_handle_{}, boot_handle_{}, protocol_handle_{};
     std::array<uint16_t, hid::attribute_count> handles_{};
@@ -73,8 +80,9 @@ class BleKeyboard final : public Keyboard {
     std::atomic<uint8_t> protocol_{hid::report_protocol};
     uint8_t address_type_{};
     std::atomic<uint16_t> connection_{BLE_HS_CONN_HANDLE_NONE};
-    std::atomic<bool> connected_{false}, encrypted_{false}, bonded_{false}, synced_{false},
-        passkey_pending_{false};
+    std::atomic<bool> connected_{false}, encrypted_{false}, authenticated_{false}, bonded_{false},
+        synced_{false}, passkey_pending_{false};
+    std::atomic<int> security_status_{-1};
     std::atomic<bool> request_clear_{false}, request_pair_{false};
     std::atomic<int> submitted_passkey_{-1};
     std::atomic<int64_t> pair_until_{0};

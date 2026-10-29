@@ -4,7 +4,7 @@
   "session": "0123456789abcdef0123456789abcdef",
   "online": true,
   "time_ready": true,
-  "firmware": "0.1.3",
+  "firmware": "0.1.5",
   "now": 1899999990000,
   "busy": false,
   "wifi": {
@@ -19,6 +19,9 @@
     "connected": true,
     "ready": true,
     "bonded": true,
+    "encrypted": true,
+    "authenticated": true,
+    "security_status": 0,
     "pairing_open": false,
     "passkey_pending": false,
     "pnp_id_present": true,
