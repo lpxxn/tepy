@@ -1,0 +1,20 @@
+menu "Tepy"
+    config TEPY_HID_DEVICE_INFORMATION
+        bool
+        default y
+        depends on BT_NIMBLE_ENABLED && BT_NIMBLE_HID_SERVICE
+        select BT_NIMBLE_DIS_SERVICE
+        select BT_NIMBLE_SVC_DIS_PNP_ID
+        select BT_NIMBLE_SVC_DIS_MANUFACTURER_NAME
+        select BT_NIMBLE_SVC_DIS_SERIAL_NUMBER
+        select BT_NIMBLE_SVC_DIS_FIRMWARE_REVISION
+        help
+            HID over GATT requires PnP ID. Select it even in existing sdkconfig
+            files that explicitly disabled DIS fields. Defaults alone do not
+            override saved configuration values.
+
+    config TEPY_RECOVERY_GPIO
+        int "Recovery button GPIO (active low)"
+        range 0 48
+        default 0
+endmenu

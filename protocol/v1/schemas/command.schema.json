@@ -1,0 +1,152 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tepy.local/protocol/v1/command.schema.json",
+  "title": "Tepy v1 command",
+  "type": "object",
+  "properties": {
+    "v": {
+      "const": 1
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_.-]{1,64}$"
+    },
+    "session": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{32}$"
+    },
+    "expires_at": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 9007199254740991
+    },
+    "type": {
+      "enum": [
+        "wake",
+        "type_text",
+        "key"
+      ]
+    },
+    "payload": {
+      "type": "object"
+    }
+  },
+  "required": [
+    "v",
+    "id",
+    "session",
+    "expires_at",
+    "type",
+    "payload"
+  ],
+  "additionalProperties": false,
+  "oneOf": [
+    {
+      "properties": {
+        "type": {
+          "const": "wake"
+        },
+        "payload": {
+          "type": "object",
+          "properties": {},
+          "required": [],
+          "additionalProperties": false
+        }
+      }
+    },
+    {
+      "properties": {
+        "type": {
+          "const": "type_text"
+        },
+        "payload": {
+          "type": "object",
+          "properties": {
+            "text": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 512,
+              "pattern": "^[ -~]+$"
+            },
+            "press_enter": {
+              "type": "boolean",
+              "default": false
+            }
+          },
+          "required": [
+            "text"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    {
+      "properties": {
+        "type": {
+          "const": "key"
+        },
+        "payload": {
+          "type": "object",
+          "properties": {
+            "key": {
+              "oneOf": [
+                {
+                  "type": "string",
+                  "pattern": "^[ -~]$"
+                },
+                {
+                  "enum": [
+                    "ENTER",
+                    "TAB",
+                    "ESC",
+                    "BACKSPACE",
+                    "DELETE",
+                    "SPACE",
+                    "LEFT",
+                    "RIGHT",
+                    "UP",
+                    "DOWN",
+                    "HOME",
+                    "END",
+                    "PAGEUP",
+                    "PAGEDOWN",
+                    "CAPSLOCK",
+                    "F1",
+                    "F2",
+                    "F3",
+                    "F4",
+                    "F5",
+                    "F6",
+                    "F7",
+                    "F8",
+                    "F9",
+                    "F10",
+                    "F11",
+                    "F12"
+                  ]
+                }
+              ]
+            },
+            "modifiers": {
+              "type": "array",
+              "items": {
+                "enum": [
+                  "CTRL",
+                  "SHIFT",
+                  "ALT",
+                  "GUI"
+                ]
+              },
+              "uniqueItems": true,
+              "maxItems": 4
+            }
+          },
+          "required": [
+            "key"
+          ],
+          "additionalProperties": false
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "v": 1,
+  "wifi": {
+    "ssid": "Example-WiFi",
+    "password": "EXAMPLE-ONLY-CHANGE-ME"
+  },
+  "mqtt": {
+    "uri": "mqtt://192.168.1.10:1883",
+    "username": "tepy",
+    "password": "EXAMPLE-ONLY-CHANGE-ME",
+    "ca": ""
+  },
+  "ntp_server": "pool.ntp.org",
+  "key_delay_ms": 20
+}

@@ -1,0 +1,13 @@
+firmware/build/
+firmware/managed_components/
+firmware/sdkconfig
+firmware/sdkconfig.old
+firmware/tests/build/
+.venv/
+__pycache__/
+*.pyc
+*.local.json
+.env
+dist/
+.DS_Store
+.vscode/

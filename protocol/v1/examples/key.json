@@ -1,0 +1,13 @@
+{
+  "v": 1,
+  "id": "example-key",
+  "session": "0123456789abcdef0123456789abcdef",
+  "expires_at": 1900000000000,
+  "type": "key",
+  "payload": {
+    "key": "a",
+    "modifiers": [
+      "GUI"
+    ]
+  }
+}

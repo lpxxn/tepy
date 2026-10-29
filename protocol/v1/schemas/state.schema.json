@@ -1,0 +1,153 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tepy.local/protocol/v1/state.schema.json",
+  "title": "Tepy v1 state",
+  "type": "object",
+  "properties": {
+    "v": {
+      "const": 1
+    },
+    "device_id": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{12}$"
+    },
+    "session": {
+      "type": "string",
+      "pattern": "^([0-9a-f]{32})?$"
+    },
+    "online": {
+      "type": "boolean"
+    },
+    "time_ready": {
+      "type": "boolean"
+    },
+    "firmware": {
+      "type": "string"
+    },
+    "now": {
+      "type": "integer"
+    },
+    "busy": {
+      "type": "boolean"
+    },
+    "wifi": {
+      "type": "object",
+      "properties": {
+        "connected": {
+          "type": "boolean"
+        },
+        "hotspot": {
+          "type": "boolean"
+        },
+        "ip": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "connected",
+        "hotspot",
+        "ip"
+      ],
+      "additionalProperties": false
+    },
+    "mqtt": {
+      "type": "object",
+      "properties": {
+        "connected": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "connected"
+      ],
+      "additionalProperties": false
+    },
+    "ble": {
+      "type": "object",
+      "properties": {
+        "connected": {
+          "type": "boolean"
+        },
+        "ready": {
+          "type": "boolean"
+        },
+        "bonded": {
+          "type": "boolean"
+        },
+        "pairing_open": {
+          "type": "boolean"
+        },
+        "passkey_pending": {
+          "type": "boolean"
+        },
+        "pnp_id_present": {
+          "type": "boolean"
+        },
+        "protocol_mode": {
+          "enum": ["report", "boot"]
+        },
+        "report_subscribed": {
+          "type": "boolean"
+        },
+        "boot_subscribed": {
+          "type": "boolean"
+        },
+        "host_reads": {
+          "type": "array",
+          "uniqueItems": true,
+          "maxItems": 15,
+          "items": {
+            "enum": ["information", "report_map", "control", "protocol", "input", "output", "boot_input", "boot_output", "input_reference", "output_reference", "pnp", "manufacturer", "model", "serial", "firmware"]
+          }
+        },
+        "tx_completed": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295
+        },
+        "tx_errors": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295
+        }
+      },
+      "required": [
+        "connected",
+        "ready",
+        "bonded",
+        "pairing_open",
+        "passkey_pending"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "v",
+    "device_id",
+    "session",
+    "online",
+    "time_ready"
+  ],
+  "additionalProperties": false,
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "online": {
+            "const": true
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "firmware",
+          "now",
+          "busy",
+          "wifi",
+          "mqtt",
+          "ble"
+        ]
+      }
+    }
+  ]
+}

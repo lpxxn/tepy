@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tepy.local/protocol/v1/reply.schema.json",
+  "title": "Tepy v1 reply",
+  "type": "object",
+  "properties": {
+    "v": {
+      "const": 1
+    },
+    "id": {
+      "type": "string",
+      "maxLength": 64
+    },
+    "status": {
+      "enum": [
+        "sent",
+        "rejected",
+        "failed"
+      ]
+    },
+    "error": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "v",
+    "id",
+    "status",
+    "error"
+  ],
+  "additionalProperties": false
+}

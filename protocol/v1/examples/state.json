@@ -1,0 +1,32 @@
+{
+  "v": 1,
+  "device_id": "aabbccddeeff",
+  "session": "0123456789abcdef0123456789abcdef",
+  "online": true,
+  "time_ready": true,
+  "firmware": "0.1.3",
+  "now": 1899999990000,
+  "busy": false,
+  "wifi": {
+    "connected": true,
+    "hotspot": false,
+    "ip": "192.168.1.20"
+  },
+  "mqtt": {
+    "connected": true
+  },
+  "ble": {
+    "connected": true,
+    "ready": true,
+    "bonded": true,
+    "pairing_open": false,
+    "passkey_pending": false,
+    "pnp_id_present": true,
+    "protocol_mode": "report",
+    "report_subscribed": true,
+    "boot_subscribed": false,
+    "host_reads": ["information", "report_map", "input_reference", "output_reference", "pnp", "model"],
+    "tx_completed": 0,
+    "tx_errors": 0
+  }
+}

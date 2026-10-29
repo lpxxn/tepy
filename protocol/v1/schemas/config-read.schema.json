@@ -1,0 +1,76 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tepy.local/protocol/v1/config-read.schema.json",
+  "title": "Tepy v1 config-read",
+  "type": "object",
+  "properties": {
+    "v": {
+      "const": 1
+    },
+    "wifi": {
+      "type": "object",
+      "properties": {
+        "ssid": {
+          "type": "string",
+          "maxLength": 32
+        },
+        "password_set": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "ssid",
+        "password_set"
+      ],
+      "additionalProperties": false
+    },
+    "mqtt": {
+      "type": "object",
+      "properties": {
+        "uri": {
+          "type": "string",
+          "maxLength": 256
+        },
+        "username": {
+          "type": "string",
+          "maxLength": 128
+        },
+        "ca": {
+          "type": "string",
+          "maxLength": 8192
+        },
+        "password_set": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "uri",
+        "username",
+        "ca",
+        "password_set"
+      ],
+      "additionalProperties": false
+    },
+    "ntp_server": {
+      "type": "string",
+      "maxLength": 128
+    },
+    "key_delay_ms": {
+      "type": "integer",
+      "minimum": 5,
+      "maximum": 200
+    },
+    "admin_password_set": {
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "v",
+    "wifi",
+    "mqtt",
+    "ntp_server",
+    "key_delay_ms",
+    "admin_password_set"
+  ],
+  "additionalProperties": false
+}

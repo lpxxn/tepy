@@ -1,0 +1,11 @@
+{
+  "v": 1,
+  "id": "example-type",
+  "session": "0123456789abcdef0123456789abcdef",
+  "expires_at": 1900000000000,
+  "type": "type_text",
+  "payload": {
+    "text": "Hello, Mac! + = \" \\",
+    "press_enter": false
+  }
+}
