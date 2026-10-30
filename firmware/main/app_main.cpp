@@ -15,6 +15,7 @@
 #include "tepy/mqtt.hpp"
 #include "tepy/network.hpp"
 #include "tepy/ota.hpp"
+#include "tepy/serial.hpp"
 #include "tepy/web.hpp"
 #include <atomic>
 #include <memory>
@@ -44,9 +45,10 @@ struct CommandDelete {
 class Application {
   public:
     Application()
-        : web_({config_, ble_, network_, ota_, [this] { return status(); },
-                [this] { return maintenance(); }, [this] { busy_ = false; },
-                [this] { reboot_at_ = esp_timer_get_time() + 1000000; }}) {}
+        : management_({config_, ble_, network_, [this] { return status(); },
+                       [this] { return maintenance(); }, [this] { busy_ = false; },
+                       [this] { reboot_at_ = esp_timer_get_time() + 1000000; }}),
+          web_(management_, ota_), serial_(management_) {}
     esp_err_t start() {
         bool created = false;
         auto error = config_.init(created);
@@ -81,6 +83,9 @@ class Application {
         if (error != ESP_OK)
             return error;
         error = web_.start();
+        if (error != ESP_OK)
+            return error;
+        error = serial_.start();
         if (error != ESP_OK)
             return error;
         gpio_config_t button{};
@@ -255,7 +260,9 @@ class Application {
     Network network_;
     MqttTransport mqtt_;
     OtaUpdater ota_;
+    Management management_;
     WebServer web_;
+    SerialServer serial_;
     std::string id_, dedup_session_;
     QueueHandle_t queue_{};
     std::mutex gate_;

@@ -3,6 +3,8 @@ firmware/managed_components/
 firmware/sdkconfig
 firmware/sdkconfig.old
 firmware/tests/build/
+apps/desktop-qt/build/
+apps/desktop-qt/build-check.log
 .venv/
 __pycache__/
 *.pyc

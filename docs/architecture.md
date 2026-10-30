@@ -2,7 +2,7 @@
 
 ## 数据流
 
-MQTT → JSON 校验 → 类型化 Command → 单任务执行器 → BLE HID。HTTP 管理接口调用配置、网络、蓝牙和升级服务，不直接产生键盘动作。
+MQTT → JSON 校验 → 类型化 Command → 单任务执行器 → BLE HID。HTTP / USB 串口管理接口经统一 Management 服务调用配置、网络和蓝牙服务，不直接产生键盘动作。HTTP 另提供流式 OTA。
 
 ## 组件职责
 
@@ -15,6 +15,8 @@ MQTT → JSON 校验 → 类型化 Command → 单任务执行器 → BLE HID。
 | tepy_network | STA / SoftAP、SNTP、mDNS、连接恢复 |
 | tepy_mqtt | MQTT 会话、收包、发布、TLS |
 | tepy_web | HTTP Bearer 管理、静态页面、API 路由 |
+| tepy_management | HTTP / USB 共用的配置、状态、配对和重启业务 |
+| tepy_serial | USB Serial/JTAG 驱动、带前缀 JSON 分帧、逐请求鉴权 |
 | tepy_ota | 镜像接收、检查、备用分区、回滚确认 |
 | protocol/v1 | 所有客户端共享的 JSON Schema 和样例 |
 
@@ -34,6 +36,12 @@ MQTT 重连生成新的随机 session；只接受当前 session。每条动作�
 
 ## 扩展约定
 
-Qt 与 Go 只依赖公开协议。未来串口适配器复用配置服务和命令模型，不在 UART 回调内重新实现业务。协议主版本变化新增目录；兼容字段变化更新当前 Schema 和样例。配置版本不支持时返回错误，保留 NVS，不自动擦除。
+Qt 与 Go 只依赖公开协议。0.2.0 的串口适配器复用 Management / ConfigStore，不在 USB 接收任务中重新实现配置规则，也不把串口作为另一个键盘动作入口。串口独立 FreeRTOS 任务有输入长度上限和半帧超时，不回显接收内容。
+
+Qt 位于独立的 `apps/desktop-qt` CMake 工程。`DeviceClient` 将同一个操作名映射到 HTTP 或串口；`SerialPort` 在专用线程中使用 QSerialPort；`ConfigForm` 管理脱敏配置和密码的保留／替换／清除；`FlashJob` 通过 QProcess 参数列表调用 esptool；`protocol` 校验 URL、帧与镜像／清单；`ui` 与 `MainWindow` 负责视觉及交互。GUI 不链接固件组件。
+
+从桌面 0.1.1 起，`busy()` 表示存在待回复请求，`exclusiveBusy()` 单独表示前台独占操作。状态／扫描轮询使用后台模式，不禁用表单。用户操作可以取消对旧后台读取的等待，再立即发起请求；HTTP 忽略已取消的回复对象，串口忽略旧 ID。配置保存、配对、重启和 OTA 等前台操作不被其他请求取消，也不自动重发。样式属性未变化时不重新 polish；状态详情按需更新，并保留用户的选择和滚动位置。
+
+协议主版本变化新增目录；兼容字段变化更新当前 Schema 和样例。配置版本不支持时返回错误，保留 NVS，不自动擦除。
 
 首版只支持一个活动 Broker、一个蓝牙目标。固件运行时对象存活至重启；网页随应用原子升级。

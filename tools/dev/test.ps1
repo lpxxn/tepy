@@ -32,6 +32,8 @@ if ($LASTEXITCODE) { exit $LASTEXITCODE }
 if ($LASTEXITCODE) { exit $LASTEXITCODE }
 & (Join-Path $buildDir 'tepy_core_tests.exe')
 if ($LASTEXITCODE) { exit $LASTEXITCODE }
+& (Join-Path $buildDir 'tepy_serial_tests.exe')
+if ($LASTEXITCODE) { exit $LASTEXITCODE }
 & $Python (Join-Path $repoRoot 'tools/dev/check_protocol.py') --core-executable (Join-Path $buildDir 'tepy_core_tests.exe')
 if ($LASTEXITCODE) { exit $LASTEXITCODE }
 & $Python -m unittest discover -s (Join-Path $repoRoot 'tools/mqtt') -p 'test_*.py' -v

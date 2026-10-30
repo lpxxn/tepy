@@ -51,8 +51,8 @@ struct Wipe {
     ~Wipe() { secure_clear(value.data(), value.size()); }
 };
 struct Maintenance {
-    std::function<void()> &done;
-    ~Maintenance() { done(); }
+    Management &owner;
+    ~Maintenance() { owner.end_maintenance(); }
 };
 } // namespace
 esp_err_t WebServer::start() {
@@ -82,7 +82,7 @@ bool WebServer::authorized(httpd_req_t *req) const {
     auto authorization = header(req, "Authorization", 80);
     Wipe wipe{authorization};
     if (!authorization.starts_with("Bearer ") ||
-        !services_.config.authenticate(std::string_view(authorization).substr(7)))
+        !management_.authenticate(std::string_view(authorization).substr(7)))
         return false;
     const auto origin = header(req, "Origin");
     return origin.empty() || origin == "http://" + header(req, "Host");
@@ -107,34 +107,40 @@ esp_err_t WebServer::handle(httpd_req_t *req) {
         return error(req, "not_found", "404 Not Found");
     if (!authorized(req))
         return error(req, "unauthorized", "401 Unauthorized");
+    const auto dispatch = [&](std::string_view method, std::string_view params = "{}") {
+        auto result = management_.dispatch(method, params);
+        auto parsed = parse_json(result);
+        const auto issue = text(field(parsed.get(), "error"));
+        const char *status = issue.empty()                                  ? "200 OK"
+                             : issue == "busy" || issue == "already_bonded" ? "409 Conflict"
+                                                                            : "400 Bad Request";
+        return respond(req, result, status);
+    };
     if (req->method == HTTP_GET) {
         if (path == "/api/v1/status")
-            return respond(req, services_.status());
+            return dispatch("status.get");
         if (path == "/api/v1/config")
-            return respond(req, services_.config.public_json());
+            return dispatch("config.get");
         if (path == "/api/v1/wifi/scan")
-            return respond(req, services_.network.scan());
+            return dispatch("wifi.scan");
     }
     if (req->method == HTTP_PATCH && path == "/api/v1/config") {
         std::string body;
         Wipe wipe{body};
         if (!read_body(req, body, 16384))
             return error(req, "invalid_body");
-        auto issue = services_.config.patch(body);
-        if (!issue.empty())
-            return error(req, issue);
-        return respond(req, "{\"ok\":true,\"reboot_required\":true}");
+        return dispatch("config.patch", body);
     }
     if (req->method != HTTP_POST)
         return error(req, "not_found", "404 Not Found");
     if (path == "/api/v1/ota") {
         if (header(req, "Content-Type") != "application/octet-stream")
             return error(req, "invalid_content_type");
-        if (!services_.begin_maintenance())
+        if (!management_.begin_maintenance())
             return error(req, "busy", "409 Conflict");
-        Maintenance guard{services_.end_maintenance};
+        Maintenance guard{management_};
         auto deadline = esp_timer_get_time() + 120000000;
-        auto issue = services_.ota.upload(req->content_len, [&](char *buffer, size_t size) {
+        auto issue = ota_.upload(req->content_len, [&](char *buffer, size_t size) {
             while (esp_timer_get_time() < deadline) {
                 auto count = httpd_req_recv(req, buffer, size);
                 if (count != HTTPD_SOCK_ERR_TIMEOUT)
@@ -145,7 +151,7 @@ esp_err_t WebServer::handle(httpd_req_t *req) {
         if (!issue.empty())
             return error(req, issue);
         auto result = respond(req, "{\"ok\":true,\"rebooting\":true}");
-        services_.reboot();
+        management_.reboot();
         return result;
     }
     if (path == "/api/v1/ble/passkey") {
@@ -153,27 +159,14 @@ esp_err_t WebServer::handle(httpd_req_t *req) {
         Wipe wipe{body};
         if (!read_body(req, body, 128))
             return error(req, "invalid_body");
-        auto json = parse_json(body);
-        if (!json || !fields_only(json.get(), {"passkey"}) ||
-            !services_.ble.provide_passkey(text(field(json.get(), "passkey"))))
-            return error(req, "invalid_passkey");
-        return respond(req, "{\"ok\":true}");
+        return dispatch("ble.passkey", body);
     }
     if (req->content_len)
         return error(req, "unexpected_body");
     if (path == "/api/v1/ble/pair" || path == "/api/v1/ble/clear" || path == "/api/v1/reboot") {
-        if (!services_.begin_maintenance())
-            return error(req, "busy", "409 Conflict");
-        Maintenance guard{services_.end_maintenance};
-        if (path == "/api/v1/ble/pair") {
-            if (services_.ble.bonded())
-                return error(req, "already_bonded", "409 Conflict");
-            services_.ble.open_pairing();
-        } else if (path == "/api/v1/ble/clear")
-            services_.ble.clear_bond();
-        else
-            services_.reboot();
-        return respond(req, "{\"ok\":true}");
+        return dispatch(path == "/api/v1/ble/pair"    ? "ble.pair"
+                        : path == "/api/v1/ble/clear" ? "ble.clear"
+                                                      : "reboot");
     }
     return error(req, "not_found", "404 Not Found");
 }

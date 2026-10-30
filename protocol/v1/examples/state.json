@@ -4,7 +4,7 @@
   "session": "0123456789abcdef0123456789abcdef",
   "online": true,
   "time_ready": true,
-  "firmware": "0.1.5",
+  "firmware": "0.2.0",
   "now": 1899999990000,
   "busy": false,
   "wifi": {

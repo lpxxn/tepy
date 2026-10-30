@@ -1,0 +1,7 @@
+{
+  "v": 1,
+  "id": "desktop-example-1",
+  "method": "config.patch",
+  "token": "ExampleAdminTokenOnly0000",
+  "params": {"v": 1, "wifi": {"ssid": "Example-WiFi", "password": "examplepass"}}
+}

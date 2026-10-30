@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tepy.local/protocol/v1/serial-reply.schema.json",
+  "title": "Tepy v1 serial management reply (without framing)",
+  "type": "object",
+  "properties": {
+    "v": {"const": 1},
+    "id": {"type": "string", "pattern": "^([A-Za-z0-9_.-]{1,64})?$"},
+    "ok": {"type": "boolean"},
+    "result": {"type": "object"},
+    "error": {"type": "string", "minLength": 1}
+  },
+  "required": ["v", "id", "ok"],
+  "additionalProperties": false,
+  "oneOf": [
+    {"properties": {"ok": {"const": true}}, "required": ["result"], "not": {"required": ["error"]}},
+    {"properties": {"ok": {"const": false}}, "required": ["error"], "not": {"required": ["result"]}}
+  ]
+}

@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tepy.local/protocol/v1/serial-request.schema.json",
+  "title": "Tepy v1 serial management request (without framing)",
+  "type": "object",
+  "properties": {
+    "v": {"const": 1},
+    "id": {"type": "string", "pattern": "^[A-Za-z0-9_.-]{1,64}$"},
+    "method": {"enum": ["status.get", "config.get", "config.patch", "wifi.scan", "ble.pair", "ble.passkey", "ble.clear", "reboot"]},
+    "token": {"type": "string", "maxLength": 64},
+    "params": {"type": "object"}
+  },
+  "required": ["v", "id", "method", "token", "params"],
+  "additionalProperties": false,
+  "allOf": [
+    {"if": {"properties": {"method": {"const": "config.patch"}}}, "then": {"properties": {"params": {"$ref": "config.schema.json"}}}},
+    {"if": {"properties": {"method": {"const": "ble.passkey"}}}, "then": {"properties": {"params": {"type": "object", "properties": {"passkey": {"type": "string", "pattern": "^[0-9]{6}$"}}, "required": ["passkey"], "additionalProperties": false}}}},
+    {"if": {"properties": {"method": {"enum": ["status.get", "config.get", "wifi.scan", "ble.pair", "ble.clear", "reboot"]}}}, "then": {"properties": {"params": {"maxProperties": 0}}}}
+  ]
+}

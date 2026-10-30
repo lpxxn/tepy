@@ -1,5 +1,7 @@
 # 环境、构建与首次使用
 
+已有设备可使用 [Qt 桌面工具](desktop.md) 管理。HTTP 连接兼容现有 `/api/v1/`；USB 配置需要固件 0.2.0 及 ESP32-S3 的原生 USB 接口。Qt 和 monitor 不能同时占用同一串口。
+
 ## 构建
 
 安装 ESP-IDF 6.1。日常开发和首次安装可以直接使用 **flash monitor**，不必先生成合并镜像。Windows 在项目根目录执行（COM7 替换为实际端口）：

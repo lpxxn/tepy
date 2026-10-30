@@ -49,3 +49,33 @@ key 接受单个 ASCII 字符，以及 `ENTER TAB ESC BACKSPACE DELETE SPACE LEF
 | POST /api/v1/ota | 原始应用 `.bin`，application/octet-stream |
 
 配置 PATCH 省略字段表示保留；密码传空字符串表示清除（管理口令不可清空）。根 `v` 必须为 1，拒绝未知字段和不支持版本。成功返回 `{"ok":true,"reboot_required":true}`；错误为 `{"error":"错误代码"}`。OTA 成功后自动延迟重启。
+
+## USB 串口管理（固件 0.2.0 起）
+
+ESP32-S3 原生 USB Serial/JTAG，115200 / 8N1、无流控。默认 UART 控制台及其日志仍保留；USB 管理启用条件是 `CONFIG_TEPY_SERIAL_ENABLED` 及主／次 USB Serial/JTAG 控制台。USB-to-UART 暂未实现管理协议。
+
+每帧为 `@tepy:` + 紧凑 UTF-8 JSON + LF。接收支持 CRLF，JSON 正文最长 20000 字节，正文内的换行必须转义。超过上限的整行丢弃直到 LF；半帧五秒没有新字节即清除。接收内容不回显，缓冲在处理后清理。
+
+```text
+@tepy:{"v":1,"id":"desktop-1","method":"status.get","token":"ExampleAdminTokenOnly0000","params":{}}
+@tepy:{"v":1,"id":"desktop-1","ok":true,"result":{"v":1,"device_id":"aabbccddeeff"}}
+```
+
+上方状态结果只展示结构，完整结构遵循 `state.schema.json`。请求和回复 Schema 分别为 `serial-request.schema.json` / `serial-reply.schema.json`。示例口令不是设备真实口令。
+
+| method | params | result |
+| --- | --- | --- |
+| status.get | `{}` | 与 HTTP status 相同 |
+| config.get | `{}` | 与 HTTP 脱敏配置相同 |
+| config.patch | 配置 PATCH，含 `v:1` | `{"ok":true,"reboot_required":true}` |
+| wifi.scan | `{}` | `scanning`；结束时含 `networks` |
+| ble.pair | `{}` | `{"ok":true}` |
+| ble.passkey | `{"passkey":"123456"}` | `{"ok":true}` |
+| ble.clear | `{}` | `{"ok":true}` |
+| reboot | `{}` | `{"ok":true}`，设备延迟重启 |
+
+每次请求都必须携带当前管理口令，不能由物理连接跳过鉴权。`id` 为 1–64 个 ASCII 字母、数字、`-_.`，客户端为每次请求生成新 ID，忽略不匹配回复。没有可用 ID 的错误回复使用空 ID。
+
+成功封装为 `{"v":1,"id":"...","ok":true,"result":{...}}`，失败为 `{"v":1,"id":"...","ok":false,"error":"..."}`。协议错误包括 `invalid_request`、`unsupported_version`、`unauthorized`、`frame_too_large`、`internal_error`；业务错误复用 HTTP，例如 `invalid_wifi_password`、`busy`、`already_bonded`、`invalid_passkey`。不回显 token、配置密码或配对码。
+
+USB 回复和普通启动日志可能共用串口；客户端只解析以 `@tepy:` 开头的完整行，不展示其他行。Qt 只跟踪一个有效管理请求，15 秒没有对应回复即报结果未确认，不自动重发。桌面 0.1.1 允许用户操作替代后台状态／扫描读取，取消客户端等待并忽略旧 ID 的迟到回复；前台写操作不被替代，也不积压或重发。此接口不提供 MQTT 动作或串口二进制 OTA；固件升级使用 HTTP OTA 或 ROM 下载器。

@@ -1,4 +1,12 @@
 menu "Tepy"
+    config TEPY_SERIAL_ENABLED
+        bool "USB Serial/JTAG management protocol"
+        default y
+        depends on ESP_CONSOLE_USB_SERIAL_JTAG || ESP_CONSOLE_SECONDARY_USB_SERIAL_JTAG
+        help
+            Authenticated framed JSON management for the Qt client over the
+            native USB port. UART console output alone is not this interface.
+
     config TEPY_HID_DEVICE_INFORMATION
         bool
         default y
