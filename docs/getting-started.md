@@ -139,6 +139,8 @@ python tools/mqtt/tepy_cli.py --host $broker --device $device key /
 cd C:\Users\nick\go\src\lpxxn\tepy
 python -m pip install -r tools/mqtt/requirements.txt
 
+e21c305fe2615517c17b1fe5bc3454a6
+
 $broker = "你配置的MQTT服务器地址"
 $broker = "127.0.0.1"
 $device = "24587cda3a18"

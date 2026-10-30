@@ -92,11 +92,15 @@ QIcon navigationIcon(int index) {
         path.moveTo(10, 2);
         path.lineTo(10, 18);
         p.drawPath(path);
-    } else {
+    } else if (index == 3) {
         p.drawRoundedRect(QRectF(3, 3, 14, 14), 2, 2);
         p.drawLine(10, 6, 10, 14);
         p.drawLine(7, 11, 10, 14);
         p.drawLine(13, 11, 10, 14);
+    } else {
+        p.drawRoundedRect(QRectF(2, 3, 16, 11), 2, 2);
+        p.drawLine(10, 14, 10, 18);
+        p.drawLine(6, 18, 14, 18);
     }
     return QIcon(pixmap);
 }
@@ -145,7 +149,7 @@ QPushButton:disabled, QPushButton[variant="primary"]:disabled, QPushButton[varia
 QToolButton { border: none; background: transparent; color: #0f8c80; padding: 6px 0; font-size: 12px; }
 QToolButton:hover { color: #115e59; }
 QPlainTextEdit { color: #52667d; background: #f8fafc; border: 1px solid #e3ebf2; border-radius: 9px; padding: 10px; selection-background-color: #c5eee7; }
-QPlainTextEdit#stateCode, QPlainTextEdit#flashLog { font-family: Consolas, monospace; font-size: 12px; }
+QPlainTextEdit#stateCode, QPlainTextEdit#flashLog, QPlainTextEdit#macAgentDetails { font-family: Consolas, monospace; font-size: 12px; }
 QScrollArea, QScrollArea > QWidget > QWidget { background: transparent; border: none; }
 QTabWidget::pane { border: none; background: transparent; }
 QProgressBar { border: none; background: #edf2f7; border-radius: 5px; min-height: 9px; max-height: 9px; }

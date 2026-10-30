@@ -34,6 +34,8 @@ key 接受单个 ASCII 字符，以及 `ENTER TAB ESC BACKSPACE DELETE SPACE LEF
 
 ## HTTP
 
+本节为 ESP32 管理端点；Mac 服务使用后文单独定义的主题和 `/api/v1/agent/status`。
+
 根页面公开，所有 `/api/v1/` 端点要求 `Authorization: Bearer <管理口令>`。页面只在当前标签页内保存口令。无 CORS；管理 POST 要求同源。HTTP 用于受信局域网和 WPA2 配置热点，口令没有额外的 HTTP 传输加密，不应映射到公网。
 
 | 方法 / 路径 | 行为 |
@@ -79,3 +81,37 @@ ESP32-S3 原生 USB Serial/JTAG，115200 / 8N1、无流控。默认 UART 控制�
 成功封装为 `{"v":1,"id":"...","ok":true,"result":{...}}`，失败为 `{"v":1,"id":"...","ok":false,"error":"..."}`。协议错误包括 `invalid_request`、`unsupported_version`、`unauthorized`、`frame_too_large`、`internal_error`；业务错误复用 HTTP，例如 `invalid_wifi_password`、`busy`、`already_bonded`、`invalid_passkey`。不回显 token、配置密码或配对码。
 
 USB 回复和普通启动日志可能共用串口；客户端只解析以 `@tepy:` 开头的完整行，不展示其他行。Qt 只跟踪一个有效管理请求，15 秒没有对应回复即报结果未确认，不自动重发。桌面 0.1.1 允许用户操作替代后台状态／扫描读取，取消客户端等待并忽略旧 ID 的迟到回复；前台写操作不被替代，也不积压或重发。此接口不提供 MQTT 动作或串口二进制 OTA；固件升级使用 HTTP OTA 或 ROM 下载器。
+
+## macOS Agent 状态（服务 0.1.0 / Qt 0.2.0 起）
+
+与 ESP32 状态分别定义，遵循 `agent-state.schema.json`，完整示例为 `examples/agent-state.json`。代理身份 `agent_id` 来自 TOML，不等同于 ESP32 的 `device_id`。服务不订阅命令主题，不接收脚本、密码或解锁请求。
+
+| MQTT 主题 | 内容 | QoS / retained |
+| --- | --- | --- |
+| tepy/macos/\<agent_id\>/state | 完整状态 JSON | 1 / true |
+| tepy/macos/\<agent_id\>/availability | online 或 offline | 1 / true |
+
+使用 MQTT 3.1.1、干净会话，遗嘱为 retained offline。连接失败以 1–30 秒退避重试；断线不积压快照，恢复时只发当前有效状态。正常停止尽力发布 offline。Broker ACL 可只授予代理其自身上述主题的发布权限。订阅者必须同时检查状态租约，不能只凭 online 或 retained 判断当前在线。
+
+| 字段 | 含义 |
+| --- | --- |
+| v / agent_id / agent_version / name / platform | 协议 1、代理身份、版本、显示名、darwin |
+| session / sequence | 每次进程启动更换的 32 位随机十六进制标识、进程内快照序号 |
+| observed_at / valid_until / uptime_seconds | Unix 毫秒采样与过期时间、进程运行秒数 |
+| mqtt | configured / connected 布尔值 |
+| user_session | available、on_console、login_done、lock_state、lock_source |
+| hid | available、state、target_device_id、devices |
+| power | monitoring、state、last_event、last_event_at、wake_count |
+| diagnostics | 不包含凭据的诊断代码列表 |
+
+租约为心跳间隔三倍，默认 30 秒，上限 180 秒。过期后状态视为未知。Mac 与消费者时钟需同步；进程重启后不得延续上一个 session 的事件和计数。
+
+`on_console` / `login_done` 无可靠值时为 null。`lock_state` 为 locked / unlocked / unknown；`lock_source` 为 cg_session_property / io_console_property / screen_notification / unavailable，说明快照或事件来源。可选会话字段与通知用于诊断，不是稳定的身份认证凭据。缺少锁定字段不等于 unlocked，离开当前控制台会清除旧的事件推断。
+
+`hid.state` 为 registered / absent / unknown；devices 只包含目标 Tepy 键盘的 product、transport、registry_id。注册只说明 Mac 创建了 HID 对象，不说明当前应用收到按键。命令失败或输出格式不受支持时为 unknown，不能作为 absent。
+
+电源 state 为 awake / sleeping / unknown，last_event 为 none / will_sleep / did_wake。monitoring 表示监听已注册，wake_count 只计本进程观察到的唤醒。系统睡眠通知立即确认，不为等待 Broker 阻止睡眠；will_sleep 消息尽力发送，网络先断开时可能收不到。唤醒后恢复采样和发布。
+
+HTTP 仅提供 `GET /api/v1/agent/status`，使用独立的 `Authorization: Bearer <TOML http.token>`，返回相同 JSON。默认监听 `127.0.0.1:18765`；跨机部署需显式配置监听地址。无 Cookie／CORS，拒绝 Origin、请求体、查询参数和写方法，响应 `Cache-Control: no-store`。错误为 `{"error":"code"}`：unauthorized（401）、origin_forbidden（403）、not_found（404）、method_not_allowed（405）、unexpected_body（400）、state_stale（503）。
+
+Qt 使用独立 HTTP 客户端，每五秒采样、请求四秒超时，不重定向；连接内固定 agent_id，身份改变时停止。暂时断网时显示未知并继续读取，鉴权或结构错误时停止。Go 的 MQTT TLS、CA／客户端证书与部署方法见 [服务文档](macos-agent.md)。

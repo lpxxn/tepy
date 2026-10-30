@@ -1,0 +1,17 @@
+{
+  "v": 1,
+  "agent_id": "mac-example",
+  "agent_version": "0.1.0",
+  "name": "Tepy Mac",
+  "platform": "darwin",
+  "session": "0123456789abcdef0123456789abcdef",
+  "sequence": 12,
+  "observed_at": 1793372207000,
+  "valid_until": 1793372237000,
+  "uptime_seconds": 22,
+  "mqtt": {"configured": true, "connected": true},
+  "user_session": {"available": true, "on_console": true, "login_done": true, "lock_state": "unknown", "lock_source": "unavailable"},
+  "hid": {"available": true, "state": "registered", "target_device_id": "001122334455", "devices": [{"product": "Tepy-334455", "transport": "Bluetooth Low Energy", "registry_id": "0x123456"}]},
+  "power": {"monitoring": true, "state": "awake", "last_event": "did_wake", "last_event_at": 1793372200000, "wake_count": 1},
+  "diagnostics": ["screen_lock_state_unavailable"]
+}

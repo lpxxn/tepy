@@ -1,0 +1,24 @@
+# 复制并编辑前，建议用 tepy-agent init 自动生成 agent_id 和 HTTP 口令。
+version = 1
+agent_id = "mac-example"
+name = "Tepy Mac"
+sample_seconds = 2
+heartbeat_seconds = 10
+
+[hid]
+# 可留空以匹配全部 Tepy 键盘；填写目标 ESP32 的完整十二位 device_id 可缩小范围。
+device_id = ""
+
+[http]
+# Qt 位于另一台电脑时，改为 Mac 的局域网 IP，例如 192.168.50.2:18765。
+listen = "127.0.0.1:18765"
+token = "ReplaceWithAtLeast32RandomCharacters"
+
+[mqtt]
+url = "mqtt://192.168.50.99:1883"
+username = ""
+password = ""
+# 使用证书时，URL 改为 mqtts://主机:8883。路径相对于本配置文件。
+ca_file = ""
+client_cert_file = ""
+client_key_file = ""

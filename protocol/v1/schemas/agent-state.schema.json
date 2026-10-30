@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tepy.local/protocol/v1/agent-state.schema.json",
+  "title": "Tepy macOS agent v1 state",
+  "type": "object",
+  "properties": {
+    "v": {"const": 1},
+    "agent_id": {"type": "string", "pattern": "^[A-Za-z0-9_.-]{1,64}$"},
+    "agent_version": {"type": "string", "minLength": 1, "maxLength": 64},
+    "name": {"type": "string", "minLength": 1, "maxLength": 128},
+    "platform": {"const": "darwin"},
+    "session": {"type": "string", "pattern": "^[a-f0-9]{32}$"},
+    "sequence": {"type": "integer", "minimum": 1},
+    "observed_at": {"type": "integer", "minimum": 1},
+    "valid_until": {"type": "integer", "minimum": 1},
+    "uptime_seconds": {"type": "integer", "minimum": 0},
+    "mqtt": {
+      "type": "object", "properties": {"configured": {"type": "boolean"}, "connected": {"type": "boolean"}},
+      "required": ["configured", "connected"], "additionalProperties": false
+    },
+    "user_session": {
+      "type": "object",
+      "properties": {
+        "available": {"type": "boolean"},
+        "on_console": {"type": ["boolean", "null"]},
+        "login_done": {"type": ["boolean", "null"]},
+        "lock_state": {"enum": ["locked", "unlocked", "unknown"]},
+        "lock_source": {"enum": ["cg_session_property", "io_console_property", "screen_notification", "unavailable"]}
+      },
+      "required": ["available", "on_console", "login_done", "lock_state", "lock_source"], "additionalProperties": false
+    },
+    "hid": {
+      "type": "object",
+      "properties": {
+        "available": {"type": "boolean"},
+        "state": {"enum": ["registered", "absent", "unknown"]},
+        "target_device_id": {"type": "string", "pattern": "^([a-f0-9]{12})?$"},
+        "devices": {
+          "type": "array", "maxItems": 8,
+          "items": {"type": "object", "properties": {
+            "product": {"type": "string", "maxLength": 128},
+            "transport": {"type": "string", "maxLength": 64},
+            "registry_id": {"type": "string", "pattern": "^0x[0-9a-fA-F]{1,16}$"}
+          }, "required": ["product", "transport", "registry_id"], "additionalProperties": false}
+        }
+      },
+      "required": ["available", "state", "target_device_id", "devices"], "additionalProperties": false
+    },
+    "power": {
+      "type": "object", "properties": {
+        "monitoring": {"type": "boolean"},
+        "state": {"enum": ["awake", "sleeping", "unknown"]},
+        "last_event": {"enum": ["none", "will_sleep", "did_wake"]},
+        "last_event_at": {"type": "integer", "minimum": 0},
+        "wake_count": {"type": "integer", "minimum": 0}
+      }, "required": ["monitoring", "state", "last_event", "last_event_at", "wake_count"], "additionalProperties": false
+    },
+    "diagnostics": {"type": "array", "maxItems": 32, "items": {"type": "string", "maxLength": 128}}
+  },
+  "required": ["v", "agent_id", "agent_version", "name", "platform", "session", "sequence", "observed_at", "valid_until", "uptime_seconds", "mqtt", "user_session", "hid", "power", "diagnostics"],
+  "additionalProperties": false
+}

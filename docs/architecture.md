@@ -4,6 +4,8 @@
 
 MQTT → JSON 校验 → 类型化 Command → 单任务执行器 → BLE HID。HTTP / USB 串口管理接口经统一 Management 服务调用配置、网络和蓝牙服务，不直接产生键盘动作。HTTP 另提供流式 OTA。
 
+Mac 原生会话／IOKit 电源事件／HID 诊断 → Go 状态快照 → MQTT 状态主题及只读 HTTP → Qt“Mac 状态”页。该数据流与 ESP32 的管理和键盘动作独立；Mac 状态不会触发密码输入。状态包含采样时间、租约和未知值，避免将历史消息当作实时结果。
+
 ## 组件职责
 
 | 目录 | 职责 |
@@ -19,6 +21,8 @@ MQTT → JSON 校验 → 类型化 Command → 单任务执行器 → BLE HID。
 | tepy_serial | USB Serial/JTAG 驱动、带前缀 JSON 分帧、逐请求鉴权 |
 | tepy_ota | 镜像接收、检查、备用分区、回滚确认 |
 | protocol/v1 | 所有客户端共享的 JSON Schema 和样例 |
+| apps/desktop-qt | Qt Widgets 设备管理及 Mac 状态展示，独立 CMake 工程 |
+| apps/macos-agent | TOML 配置、Mac 原生观察、MQTT／HTTP、LaunchAgent，独立 Go module |
 
 自有组件使用 C++23，异常和 RTTI 关闭。入口有 C linkage；底层 ESP-IDF、NimBLE 保留 C 实现。使用 RAII、固定容量命令缓冲及显式错误返回。配置受互斥锁保护；网络回调只更新状态，输入在独立 FreeRTOS 任务完成。
 
@@ -41,6 +45,10 @@ Qt 与 Go 只依赖公开协议。0.2.0 的串口适配器复用 Management / Co
 Qt 位于独立的 `apps/desktop-qt` CMake 工程。`DeviceClient` 将同一个操作名映射到 HTTP 或串口；`SerialPort` 在专用线程中使用 QSerialPort；`ConfigForm` 管理脱敏配置和密码的保留／替换／清除；`FlashJob` 通过 QProcess 参数列表调用 esptool；`protocol` 校验 URL、帧与镜像／清单；`ui` 与 `MainWindow` 负责视觉及交互。GUI 不链接固件组件。
 
 从桌面 0.1.1 起，`busy()` 表示存在待回复请求，`exclusiveBusy()` 单独表示前台独占操作。状态／扫描轮询使用后台模式，不禁用表单。用户操作可以取消对旧后台读取的等待，再立即发起请求；HTTP 忽略已取消的回复对象，串口忽略旧 ID。配置保存、配对、重启和 OTA 等前台操作不被其他请求取消，也不自动重发。样式属性未变化时不重新 polish；状态详情按需更新，并保留用户的选择和滚动位置。
+
+桌面 0.2.0 的 `AgentClient` 使用独立网络管理器和五秒定时器，校验 Mac 状态版本、身份及租约；`AgentPage` 展示锁定、HID、MQTT 和电源事件。Mac 服务与 ESP32 使用不同口令，连接及失败状态互不影响。只读请求禁止重定向，不保存口令。
+
+Go 的 `internal/platform` 隔离 CGo / C++23 原生桥接和 hidutil 解析；`service` 合并采样与事件，`model` 提供线程安全快照；`mqtt`、`api` 只发布／读取快照；`config` 负责 TOML、严格校验和 TLS；`launchd` 管理当前 GUI 用户的服务。分布式通知在主线程 CFRunLoop 中处理，采样与 MQTT 在独立 goroutine 中运行。收到系统睡眠询问后立即确认，不因网络请求阻止睡眠。其他平台只提供测试 stub，不能安装为 Mac 服务。目录与部署细节见 [Go 服务文档](macos-agent.md)。
 
 协议主版本变化新增目录；兼容字段变化更新当前 Schema 和样例。配置版本不支持时返回错误，保留 NVS，不自动擦除。
 

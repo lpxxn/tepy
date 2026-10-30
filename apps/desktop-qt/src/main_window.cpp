@@ -1,4 +1,5 @@
 #include "main_window.hpp"
+#include "agent_page.hpp"
 #include "ui.hpp"
 #include <QCloseEvent>
 #include <QFileDialog>
@@ -52,18 +53,20 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
     brandRow->addLayout(brandText);
     side->addLayout(brandRow);
     const QStringList titles{QStringLiteral("设备概览"), QStringLiteral("网络配置"),
-                             QStringLiteral("蓝牙连接"), QStringLiteral("固件管理")};
+                             QStringLiteral("蓝牙连接"), QStringLiteral("固件管理"),
+                             QStringLiteral("Mac 状态")};
     const QStringList subtitles{QStringLiteral("连接你的设备，掌握每一项运行状态。"),
                                 QStringLiteral("让设备接入 Wi-Fi，配置 MQTT 与连接参数。"),
                                 QStringLiteral("配对你的 Mac，并管理蓝牙键盘连接。"),
-                                QStringLiteral("升级应用固件，或通过 USB 恢复设备。")};
+                                QStringLiteral("升级应用固件，或通过 USB 恢复设备。"),
+                                QStringLiteral("查看 Mac 会话、睡眠唤醒与键盘注册结果。")};
     auto *navigation = new QListWidget(sidebar);
     navigation->setObjectName(QStringLiteral("navigation"));
     navigation->setIconSize(QSize(20, 20));
     for (int i = 0; i < titles.size(); ++i)
         navigation->addItem(new QListWidgetItem(ui::navigationIcon(i), titles[i]));
     side->addWidget(navigation, 1);
-    side->addWidget(ui::label(QStringLiteral("ESP32-S3\nDesktop 0.1.1"), "sidebarFooter", sidebar));
+    side->addWidget(ui::label(QStringLiteral("ESP32-S3\nDesktop 0.2.0"), "sidebarFooter", sidebar));
     root->addWidget(sidebar);
     auto *main = new QWidget(central);
     main->setObjectName(QStringLiteral("mainArea"));
@@ -363,12 +366,16 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
     firmwareLayout->addWidget(flashCard.widget);
     firmwareLayout->addStretch();
     tabs->addTab(scrollPage(firmwarePage), titles[3]);
+    tabs->addTab(scrollPage(new AgentPage(tabs)), titles[4]);
     connect(navigation, &QListWidget::currentRowChanged, tabs, &QTabWidget::setCurrentIndex);
     connect(tabs, &QTabWidget::currentChanged, this,
-            [navigation, pageTitle, pageSubtitle, titles, subtitles](int index) {
+            [this, navigation, pageTitle, pageSubtitle, titles, subtitles,
+             deviceCard = connectionCard.widget](int index) {
                 navigation->setCurrentRow(index);
                 pageTitle->setText(titles[index]);
                 pageSubtitle->setText(subtitles[index]);
+                deviceCard->setVisible(index != 4);
+                notice_->setVisible(index != 4);
             });
     navigation->setCurrentRow(0);
     connect(refreshPortsButton, &QPushButton::clicked, this, &MainWindow::refreshPorts);

@@ -9,6 +9,9 @@ apps/desktop-qt/build-check.log
 __pycache__/
 *.pyc
 *.local.json
+*.local.toml
+apps/macos-agent/vendor/
+apps/macos-agent/build/
 .env
 dist/
 .DS_Store

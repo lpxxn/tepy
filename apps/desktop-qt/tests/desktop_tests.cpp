@@ -1,11 +1,15 @@
+#include "agent_client.hpp"
+#include "agent_page.hpp"
 #include "config_form.hpp"
 #include "device_client.hpp"
 #include "main_window.hpp"
 #include "protocol.hpp"
 #include "ui.hpp"
+#include <QDateTime>
 #include <QEvent>
 #include <QFile>
 #include <QFontDatabase>
+#include <QJsonArray>
 #include <QJsonDocument>
 #include <QProxyStyle>
 #include <QSignalSpy>
@@ -45,6 +49,37 @@ QJsonObject config() {
                      {QStringLiteral("password_set"), true}}},
         {QStringLiteral("ntp_server"), QStringLiteral("pool.ntp.org")},
         {QStringLiteral("key_delay_ms"), 20}};
+}
+QJsonObject agentState(qint64 now) {
+    return {{QStringLiteral("v"), 1},
+            {QStringLiteral("agent_id"), QStringLiteral("mac-example")},
+            {QStringLiteral("agent_version"), QStringLiteral("0.1.0")},
+            {QStringLiteral("name"), QStringLiteral("Tepy Mac")},
+            {QStringLiteral("platform"), QStringLiteral("darwin")},
+            {QStringLiteral("session"), QString(32, QChar(u'a'))},
+            {QStringLiteral("sequence"), 1},
+            {QStringLiteral("observed_at"), now},
+            {QStringLiteral("valid_until"), now + 30000},
+            {QStringLiteral("uptime_seconds"), 1},
+            {QStringLiteral("mqtt"), QJsonObject{{QStringLiteral("configured"), true},
+                                                 {QStringLiteral("connected"), true}}},
+            {QStringLiteral("user_session"),
+             QJsonObject{{QStringLiteral("available"), true},
+                         {QStringLiteral("on_console"), true},
+                         {QStringLiteral("login_done"), true},
+                         {QStringLiteral("lock_state"), QStringLiteral("unknown")},
+                         {QStringLiteral("lock_source"), QStringLiteral("unavailable")}}},
+            {QStringLiteral("hid"), QJsonObject{{QStringLiteral("available"), true},
+                                                {QStringLiteral("state"), QStringLiteral("absent")},
+                                                {QStringLiteral("target_device_id"), QString()},
+                                                {QStringLiteral("devices"), QJsonArray()}}},
+            {QStringLiteral("power"),
+             QJsonObject{{QStringLiteral("monitoring"), true},
+                         {QStringLiteral("state"), QStringLiteral("awake")},
+                         {QStringLiteral("last_event"), QStringLiteral("none")},
+                         {QStringLiteral("last_event_at"), 0},
+                         {QStringLiteral("wake_count"), 0}}},
+            {QStringLiteral("diagnostics"), QJsonArray()}};
 }
 QByteArray jsonResponse(const QJsonObject &result) {
     const auto bytes = QJsonDocument(result).toJson(QJsonDocument::Compact);
@@ -562,6 +597,115 @@ class DesktopTests : public QObject {
         QTRY_COMPARE_WITH_TIMEOUT(failed.size(), 1, 17000);
         QVERIFY2(failed[0][1].toString().contains(QStringLiteral("管理口令")),
                  qPrintable(failed[0][1].toString()));
+    }
+    void agentStateValidation() {
+        QString error;
+        const qint64 now = 1800000000000;
+        auto state = agentState(now);
+        QVERIFY(validateAgentState(state, now, error));
+        auto stale = state;
+        stale.insert(QStringLiteral("valid_until"), now);
+        QVERIFY(!validateAgentState(stale, now, error));
+        auto malformed = state;
+        malformed.insert(QStringLiteral("session"), QStringLiteral("bad"));
+        QVERIFY(!validateAgentState(malformed, now, error));
+        malformed = state;
+        auto user = malformed.value(QStringLiteral("user_session")).toObject();
+        user.insert(QStringLiteral("lock_state"), QJsonValue());
+        malformed.insert(QStringLiteral("user_session"), user);
+        QVERIFY(!validateAgentState(malformed, now, error));
+        malformed = state;
+        auto hid = malformed.value(QStringLiteral("hid")).toObject();
+        hid.insert(QStringLiteral("state"), QStringLiteral("registered"));
+        malformed.insert(QStringLiteral("hid"), hid);
+        QVERIFY(!validateAgentState(malformed, now, error));
+    }
+    void agentHTTPReadOnly() {
+        HttpFixture fixture;
+        fixture.responder = [](const QByteArray &) {
+            return jsonResponse(agentState(QDateTime::currentMSecsSinceEpoch()));
+        };
+        AgentClient client;
+        QSignalSpy updated(&client, &AgentClient::updated), failed(&client, &AgentClient::failed);
+        QVERIFY(client.start(fixture.address(), QString(64, QChar(u'a'))));
+        QTRY_COMPARE(updated.size(), 1);
+        QVERIFY(failed.isEmpty());
+        QVERIFY(client.active());
+        QVERIFY(fixture.received.startsWith("GET /api/v1/agent/status HTTP/1.1\r\n"));
+        QVERIFY(fixture.received.contains("Authorization: Bearer aaaaa"));
+        client.stop();
+        QVERIFY(!client.active());
+    }
+    void agentRejectsWrongIdentity() {
+        HttpFixture fixture;
+        unsigned responseCount = 0;
+        fixture.responder = [&](const QByteArray &) {
+            auto state = agentState(QDateTime::currentMSecsSinceEpoch());
+            if (++responseCount > 1)
+                state.insert(QStringLiteral("agent_id"), QStringLiteral("another-mac"));
+            return jsonResponse(state);
+        };
+        AgentClient client;
+        QSignalSpy updated(&client, &AgentClient::updated), failed(&client, &AgentClient::failed);
+        QVERIFY(client.start(fixture.address(), QString(64, QChar(u'a'))));
+        QTRY_COMPARE(updated.size(), 1);
+        client.refresh();
+        QTRY_COMPARE(failed.size(), 1);
+        QVERIFY(!client.active());
+        QVERIFY(failed[0][0].toString().contains(QStringLiteral("身份")));
+    }
+    void agentPageConnectFlow() {
+        HttpFixture fixture;
+        fixture.responder = [](const QByteArray &) {
+            return jsonResponse(agentState(QDateTime::currentMSecsSinceEpoch()));
+        };
+        MainWindow window;
+        auto *tabs = window.findChild<QTabWidget *>();
+        QCOMPARE(tabs->count(), 5);
+        tabs->setCurrentIndex(4);
+        window.show();
+        auto *address = window.findChild<QLineEdit *>(QStringLiteral("macAgentAddress"));
+        auto *token = window.findChild<QLineEdit *>(QStringLiteral("macAgentToken"));
+        auto *connect = window.findChild<QPushButton *>(QStringLiteral("connectMacAgent"));
+        QVERIFY(address && token && connect);
+        address->setText(fixture.address());
+        token->setText(QString(64, QChar(u'a')));
+        connect->click();
+        QTRY_COMPARE(fixture.hits, 1u);
+        QTRY_VERIFY(!connect->isEnabled());
+        QCOMPARE(token->echoMode(), QLineEdit::Password);
+        const auto preview = qEnvironmentVariable("TEPY_TEST_PREVIEW");
+        if (!preview.isEmpty()) {
+            QTest::qWait(60);
+            QVERIFY(window.grab().save(preview + QStringLiteral("-mac-agent.png")));
+        }
+    }
+    void realMacAgentOptional() {
+        const auto address = qEnvironmentVariable("TEPY_TEST_AGENT_URL"),
+                   token = qEnvironmentVariable("TEPY_TEST_AGENT_TOKEN");
+        if (address.isEmpty() || token.isEmpty())
+            QSKIP("Set TEPY_TEST_AGENT_URL / TOKEN for a read-only real Mac check.");
+        AgentClient client;
+        QSignalSpy updated(&client, &AgentClient::updated), failed(&client, &AgentClient::failed);
+        QVERIFY(client.start(address, token));
+        QTRY_VERIFY_WITH_TIMEOUT(!updated.isEmpty() || !failed.isEmpty(), 7000);
+        QVERIFY2(failed.isEmpty(), failed.isEmpty() ? "" : qPrintable(failed[0][0].toString()));
+        QCOMPARE(updated.size(), 1);
+        const auto preview = qEnvironmentVariable("TEPY_TEST_PREVIEW");
+        if (!preview.isEmpty()) {
+            MainWindow window;
+            window.findChild<QTabWidget *>()->setCurrentIndex(4);
+            window.show();
+            auto *pageClient = window.findChild<AgentClient *>();
+            QVERIFY(pageClient);
+            QSignalSpy pageUpdated(pageClient, &AgentClient::updated);
+            window.findChild<QLineEdit *>(QStringLiteral("macAgentAddress"))->setText(address);
+            window.findChild<QLineEdit *>(QStringLiteral("macAgentToken"))->setText(token);
+            window.findChild<QPushButton *>(QStringLiteral("connectMacAgent"))->click();
+            QTRY_COMPARE_WITH_TIMEOUT(pageUpdated.size(), 1, 7000);
+            QTest::qWait(60);
+            QVERIFY(window.grab().save(preview + QStringLiteral("-mac-live.png")));
+        }
     }
 };
 QTEST_MAIN(DesktopTests)

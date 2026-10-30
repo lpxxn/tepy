@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.22)
-project(tepy_desktop VERSION 0.1.1 LANGUAGES CXX)
+project(tepy_desktop VERSION 0.2.0 LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_AUTOMOC ON)
@@ -10,7 +10,8 @@ add_library(tepy_desktop_lib STATIC
     src/device_client.cpp src/device_client.hpp
     src/config_form.cpp src/config_form.hpp
     src/flash_job.cpp src/flash_job.hpp
-    src/main_window.cpp src/main_window.hpp src/ui.cpp src/ui.hpp)
+    src/main_window.cpp src/main_window.hpp src/ui.cpp src/ui.hpp
+    src/agent_client.cpp src/agent_client.hpp src/agent_page.cpp src/agent_page.hpp)
 target_include_directories(tepy_desktop_lib PUBLIC src)
 target_link_libraries(tepy_desktop_lib PUBLIC Qt6::Core Qt6::Widgets Qt6::Network Qt6::SerialPort)
 target_compile_definitions(tepy_desktop_lib PUBLIC QT_NO_CAST_FROM_ASCII QT_NO_CAST_TO_ASCII)

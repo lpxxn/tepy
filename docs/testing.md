@@ -160,3 +160,21 @@ VendorID  ProductID  UsagePage  Usage  Transport             Product
 QtTest：21 passed、0 failed、1 skipped。新增回归直接运行三秒定时器和延迟回复，观察轮询开始至结束的 EnabledChange 事件为 0，输入焦点、草稿和选区保持不变；隐藏详情没有文档变化，打开后显示最新状态，后续轮询保留选中文本。另验证前台保存取代后台读取而不丢失、不重发，后台模式不能发送写操作，重复样式值不触发 polish。
 
 本次未更改固件，不重烧 ESP32；USB 实机检查未重复执行（对应可选测试跳过）。Windows 分发包另做独立启动检查。用户需退出旧桌面窗口再打开 0.1.1。
+
+### macOS Agent 0.1.0 与 Qt Desktop 0.2.0
+
+2026-10-30，目标 M1 Max / macOS 27.0.1，原生 Go 1.27.3、CGo、CoreGraphics / IOKit；Windows Qt 6.12.0：
+
+- Go 在 Windows 通过全部测试与 vet；目标 Mac 原生 `go test -race ./...` 和 `go vet ./...` 通过。覆盖 TOML 严格解析、未知版本／字段拒绝、初始化不覆盖文件、秘密不进入错误、TLS CA／客户端证书加载及错误私钥拒绝、状态并发拷贝、锁定事件回退与控制台边界、租约、电源状态变化、HTTP 鉴权／方法／过期拒绝、HID Devices 解析和 LaunchAgent 参数转义。
+- MQTT 测试使用真实 Paho 客户端连接本地测试 Broker，核对 CONNECT 用户名密码、干净会话、QoS 1 retained 遗嘱、状态消息、事件通知和过期状态不发布。另通过真实局域网 Broker 订阅收到代理的 heartbeat／retained 状态，MQTT connected 为 true。TLS／mTLS 证书加载已测，远程 TLS Broker 的端到端连接尚未验收。
+- 已原生构建并安装当前 GUI 用户的 LaunchAgent，确认 launchctl 为 running，更新安装保留 TOML。配置在 `~/Library/Application Support/Tepy/agent.toml`；程序、配置与日志不依赖临时源码目录运行。本次按用户明确授权监听 `0.0.0.0:18765`，未修改系统防火墙。
+- HID 实机状态为 registered，匹配 Tepy-da3a18（Bluetooth Low Energy）。IOKit 电源监听注册成功；这不等于完整睡眠／唤醒事件已经验证。
+- 用户手动锁屏／解锁并回复完成后，真实 MQTT 观测依次为 unknown → locked（cg_session_property）→ unlocked（screen_notification）；对应 locked / unlocked 的 Unix 毫秒为 1793374595015 / 1793374602684。未读取、保存或自动输入 Mac 登录密码。
+- 锁定属性在未锁定时可能缺失，因此原生快照保留 unknown；持续运行的服务可使用当前 GUI 会话实际观察到的解锁通知。主线程 CFRunLoop 处理通知，采样与 MQTT 独立运行。此信号只用于状态观察，不是认证凭据。
+- 测试期间 Mac DHCP 地址从 `192.168.50.90` 变为 `192.168.50.2`。旧 IP 超时不能据此判定睡眠或服务退出；更新地址后恢复 HTTP／SSH 和 MQTT 观测。Windows 的 `.local` 名称解析本轮未验证。
+- QtTest：25 passed、0 failed、2 skipped（可选固件镜像／USB 硬件项本轮未设置）。新增 Mac 状态校验、过期拒绝、只读 Bearer、身份改变停止和页面连接测试；到目标 Mac 的真实 HTTP 检查通过，并生成口令遮蔽的实机页面截图。
+- 427 项固件核心检查、20 项串口协议检查、8 份 JSON Schema、10 个样例、3 组 CLI → 固件交叉向量和 10 项 Python MQTT 客户端测试通过；本轮未改固件、未重新烧录 ESP32。
+
+发布目录及压缩包包含程序、示例配置和文档，不含真实 TOML、SDK、源码 vendor 或登录凭据。Windows Qt 包另检查依赖部署和仅系统 PATH 下的独立启动。
+
+仍待专项验收：Go 完整睡眠／唤醒与过夜恢复、用户切换／退出登录、其他 macOS 版本、TLS／mTLS Broker 实机部署，以及已有 Qt 配置写入／OTA 端到端项目。早前固件睡眠唤醒通过的记录，不代替新 Go 电源观察链路的验收。
