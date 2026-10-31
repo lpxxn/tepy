@@ -23,6 +23,7 @@ Mac 原生会话／IOKit 电源事件／HID 诊断 → Go 状态快照 → MQTT 
 | protocol/v1 | 所有客户端共享的 JSON Schema 和样例 |
 | apps/desktop-qt | Qt Widgets 设备管理及 Mac 状态展示，独立 CMake 工程 |
 | apps/macos-agent | TOML 配置、Mac 原生观察、MQTT／HTTP、LaunchAgent，独立 Go module |
+| apps/mobile-flutter | Android 界面、Riverpod 状态、MQTT 控制、USB OTG 管理，独立 Flutter 项目 |
 
 自有组件使用 C++23，异常和 RTTI 关闭。入口有 C linkage；底层 ESP-IDF、NimBLE 保留 C 实现。使用 RAII、固定容量命令缓冲及显式错误返回。配置受互斥锁保护；网络回调只更新状态，输入在独立 FreeRTOS 任务完成。
 
@@ -51,6 +52,8 @@ Qt 位于独立的 `apps/desktop-qt` CMake 工程。`DeviceClient` 将同一个�
 桌面 0.3.0 的 `MqttControl` 管理 Qt MQTT／TLS、精确主题订阅、状态租约与单个待回复动作；每次重连创建新客户端，不重放旧动作。`KeyboardJob` 在 GUI 事件循环中用定时器处理唤醒、等待、输入与 Mac 反馈，不阻塞线程，不保存输入。`KeyboardPage` 提供独立连接与结果展示，并向 Mac 页推送 MQTT 状态；HTTP 诊断可单独使用。`ConnectionStore` 将非秘密设置交给 QSettings、口令交给 Windows Credential Manager／macOS Keychain，凭据库失败时不回退明文。
 
 Go 的 `internal/platform` 隔离 CGo / C++23 原生桥接和 hidutil 解析；`service` 合并采样与事件，`model` 提供线程安全快照；`mqtt`、`api` 只发布／读取快照；`config` 负责 TOML、严格校验和 TLS；`launchd` 管理当前 GUI 用户的服务。分布式通知在主线程 CFRunLoop 中处理，采样与 MQTT 在独立 goroutine 中运行。收到系统睡眠询问后立即确认，不因网络请求阻止睡眠。其他平台只提供测试 stub，不能安装为 Mac 服务。目录与部署细节见 [Go 服务文档](macos-agent.md)。
+
+Flutter Mobile 0.1.0 采用 domain / data / application / presentation 分层。Riverpod Notifier 管理不可变快照，传输与安全存储通过接口注入；单次动作和单次解锁不保存输入，不在断线后重放。Android USB Host 桥接只提供字节流，Dart SerialManagement 负责 `@tepy:` 分帧、请求鉴权及 ID 匹配，复用既有固件串口协议。页面控制器持有草稿，不由状态心跳重建输入。进入后台取消后续步骤并关闭 MQTT / USB。详细代码索引见 [学习导读](flutter-learning.md)。
 
 协议主版本变化新增目录；兼容字段变化更新当前 Schema 和样例。配置版本不支持时返回错误，保留 NVS，不自动擦除。
 

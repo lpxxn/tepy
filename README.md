@@ -12,6 +12,8 @@ ESP32-S3 上的 MQTT → BLE 键盘桥接器，使用 ESP-IDF 6.1 / C++23。目�
 
 **macOS Agent 0.1.0** 已在目标 Mac 原生构建并安装为当前用户的后台服务，提供 MQTT 心跳、会话／锁定状态、电源事件与 Tepy HID 诊断，使用 TOML 配置。真实 Broker 上报和用户手动锁屏／解锁已验证；完整睡眠／唤醒事件验收见测试记录。
 
+**Flutter Mobile 0.1.3** 提供 Android 手机的 MQTT 状态、唤醒、文字、组合键与单次解锁，以及 USB OTG 配置、蓝牙配对与重启。状态页可直接连接已保存的设备；已修复连接竞态、TLS 展开灰框和点击高亮圆角。使用 Riverpod 3，代码包含中文注释与学习导读；连接档案存入系统安全存储，登录输入不保存。实测范围见测试记录。
+
 ## 从这里开始
 
 - [环境、构建与首次使用](docs/getting-started.md)
@@ -23,13 +25,15 @@ ESP32-S3 上的 MQTT → BLE 键盘桥接器，使用 ESP-IDF 6.1 / C++23。目�
 - [Qt 桌面工具使用与构建](docs/desktop.md)
 - [Qt 唤醒、输入、解锁与连接记忆](docs/keyboard-control.md)
 - [macOS Go 服务安装、配置与使用](docs/macos-agent.md)
-- [Qt / Go 路线图](docs/roadmap.md)
+- [Android 手机控制与 USB 配置](docs/mobile-flutter.md)
+- [Flutter / Dart / Riverpod 学习导读](docs/flutter-learning.md)
+- [应用路线图](docs/roadmap.md)
 
 已经完成网页配网并重启设备后，继续阅读 [连接 Mac、测试输入与睡眠唤醒](docs/getting-started.md#配网并重启后)。
 
 ## 仓库布局
 
-`firmware/` 独立构建固件；`protocol/v1/` 是共享协议和样例；`apps/desktop-qt/` 是独立 Qt 项目，`apps/macos-agent/` 是独立 Go module；`tools/` 放构建、测试及 MQTT 客户端工具。各应用独立管理依赖，不从固件私有头文件复制协议。
+`firmware/` 独立构建固件；`protocol/v1/` 是共享协议和样例；`apps/desktop-qt/` 是独立 Qt 项目，`apps/macos-agent/` 是独立 Go module，`apps/mobile-flutter/` 是独立 Flutter 项目；`tools/` 放构建、测试及 MQTT 客户端工具。各应用独立管理依赖，不从固件私有头文件复制协议。
 
 ## 功能边界
 

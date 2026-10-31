@@ -1,0 +1,9 @@
+include: package:flutter_lints/flutter.yaml
+
+analyzer:
+  exclude:
+    - build/**
+    - android/**
+linter:
+  rules:
+    avoid_print: true # 凭据和键盘内容不得通过 print 调试输出。
