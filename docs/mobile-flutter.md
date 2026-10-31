@@ -1,6 +1,6 @@
 # Android 手机控制台
 
-Tepy Mobile 0.1.3 位于 `apps/mobile-flutter`。当前提供 arm64 APK，适用于 Android 7.0（API 24）以上；本轮目标手机为 OPPO Find X9 / PLJ110 / Android 17。日常应用 ID 为 `com.tepy.tepy_mobile`，与 Qt、Go、ESP32 的配置独立。
+Tepy Flutter 0.2.0 位于 `apps/mobile-flutter`。当前提供 arm64 APK，适用于 Android 7.0（API 24）以上；本轮目标手机为 OPPO Find X9 / PLJ110 / Android 17。日常应用 ID 为 `com.tepy.tepy_mobile`，与 Qt、Go、ESP32 的配置独立。
 
 0.1.1 修复 MQTT 连接成功与异步事件的时序竞态。旧版可能在已经连接后继续每秒重连，导致状态在在线／未知之间切换、按钮禁用，以及唤醒后的输入步骤被取消。升级保留已保存连接。Debug / 真机集成测试使用独立的 `com.tepy.tepy_mobile.debug`（“Tepy 测试”），测试清理不影响日常应用。
 
@@ -8,13 +8,15 @@ Tepy Mobile 0.1.3 位于 `apps/mobile-flutter`。当前提供 arm64 APK，适用
 
 0.1.3 修复 TLS 按下时的矩形灰色高亮，折叠和展开状态都按圆角裁剪。状态页的 Mac 状态卡下方新增“已保存的设备”卡片，可直接点击“连接设备”，旁边保留“连接设置”。连接中显示进度并禁用重复连接，连接成功后收起这个入口。
 
+0.2.0 统一为现代靛蓝主题与内置中文字体，手机使用底部导航，Windows 使用侧边导航和分栏布局；连接记忆、TLS 圆角与状态稳定修复继续保留。同一份 Flutter 代码现可在 Windows x64 运行，详见 [Windows 使用与构建](flutter-windows.md)。Windows 同机 Broker 默认地址为 `mqtt://127.0.0.1:1883`，Android 保持局域网地址。两种系统的连接档案各自保存，不自动同步。
+
 ## 安装与连接
 
 开发 APK 使用本机开发签名。通过 USB 调试安装时：
 
 ```powershell
 adb devices
-adb -s <手机序列号> install -r dist/mobile-flutter/0.1.3/tepy-mobile-0.1.3-arm64.apk
+adb -s <手机序列号> install -r dist/mobile-flutter/0.2.0/tepy-mobile-0.2.0-arm64.apk
 ```
 
 也可将 APK 复制到手机后按系统安装界面操作。版本升级使用相同签名；不要为了处理安装错误直接卸载已有应用，以免丢失连接信息。
@@ -76,6 +78,8 @@ USB 口令可以安全记忆；本次新 Wi-Fi / MQTT 密码与配对码发送�
 ./tools/dev/mobile.ps1 -Check
 ./tools/dev/mobile.ps1 -Build
 ```
+
+若终端使用下载代理，真机 drive 连接前设置 `NO_PROXY=localhost,127.0.0.1,::1`，避免本机 Dart 调试服务走代理。
 
 集成测试需要显式指定设备；先构建独立测试 APK，再让 drive 从 APK 读取包名，避免首次切换包名时复用旧应用身份：
 

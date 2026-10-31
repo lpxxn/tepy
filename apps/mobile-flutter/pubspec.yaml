@@ -1,7 +1,7 @@
 name: tepy_mobile
-description: "Tepy 安卓控制台：Mac 状态、MQTT 唤醒和键盘操作，含中文学习注释。"
+description: "Tepy Android / Windows 控制台：Mac 状态、MQTT 唤醒和键盘操作，含中文学习注释。"
 publish_to: 'none'
-version: 0.1.3+4
+version: 0.2.0+5
 
 environment:
   sdk: ^3.13.7
@@ -25,3 +25,8 @@ flutter:
   uses-material-design: true
   assets:
     - third_party/usb-serial-LICENSE.txt
+    - assets/fonts/OFL.txt
+  fonts:
+    - family: TepySans
+      fonts:
+        - asset: assets/fonts/TepySans.ttf

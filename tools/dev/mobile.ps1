@@ -62,7 +62,7 @@ try {
         Copy-Item -LiteralPath (Join-Path $appRoot 'THIRD_PARTY.md'), (Join-Path $appRoot 'pubspec.lock') -Destination $packageDir -Force
         $thirdPartyDir = Join-Path $packageDir 'third_party'
         New-Item -ItemType Directory -Force -Path $thirdPartyDir | Out-Null
-        Copy-Item -LiteralPath (Join-Path $appRoot 'third_party/usb-serial-LICENSE.txt') -Destination $thirdPartyDir -Force
+        Copy-Item -LiteralPath (Join-Path $appRoot 'third_party/usb-serial-LICENSE.txt'), (Join-Path $appRoot 'assets/fonts/OFL.txt') -Destination $thirdPartyDir -Force
         $usbSource = Join-Path $repoRoot '.venv/mobile-third-party/usb-serial-for-android-3.11.0.tar.gz'
         if (Test-Path -LiteralPath $usbSource) {
             if ((Get-FileHash -LiteralPath $usbSource -Algorithm SHA256).Hash.ToLowerInvariant() -ne '9fc12819db958e0e83bc3ec276600758e42e049ec528341c43954768a0793af4') { throw 'USB 驱动源码 Hash 不符。' }
@@ -86,7 +86,9 @@ try {
         }
         $packageTools = Join-Path $packageDir 'tools/dev'
         New-Item -ItemType Directory -Force -Path $packageTools | Out-Null
-        Copy-Item -LiteralPath (Join-Path $repoRoot 'tools/dev/mobile.ps1') -Destination $packageTools -Force
+        foreach ($toolName in 'mobile.ps1', 'flutter-windows.ps1', 'subset-flutter-font.py', 'generate-flutter-icon.py') {
+            Copy-Item -LiteralPath (Join-Path $repoRoot "tools/dev/$toolName") -Destination $packageTools -Force
+        }
         $readme = "Tepy Mobile $version / Android arm64`n`n开发测试签名，仅供本地实测。入口 lib/main.dart。`n安装：adb -s <设备ID> install -r tepy-mobile-$version-arm64.apk`n使用说明：docs/mobile-flutter.md`n学习导读：docs/flutter-learning.md`n源码：本仓库 apps/mobile-flutter；第三方许可见 THIRD_PARTY.md。`n不包含用户凭据。实际 OTG 读写、密码输入与 TLS Broker 需专项实测。`n"
         [IO.File]::WriteAllText((Join-Path $packageDir 'README.txt'), $readme, [Text.UTF8Encoding]::new($false))
         # 文件名只来自本目录枚举；不含 SDK、缓存、keystore、真实 TOML 或输入历史。

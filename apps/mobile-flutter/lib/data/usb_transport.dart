@@ -4,7 +4,7 @@ import 'package:flutter/services.dart';
 
 import '../domain/connection_profile.dart';
 
-/// 安卓 USB 端口标识，不是 Windows COM7。重新插拔后 ID 可能变化，需重新枚举。
+/// Android 使用系统 USB 标识，Windows 使用 COM 名称。重新插拔后需要重新枚举。
 final class UsbCandidate {
   const UsbCandidate(this.id, this.name, this.vendorId, this.productId);
   final String id, name;
@@ -35,7 +35,7 @@ abstract interface class UsbTransport {
 
 /// MethodChannel 发起调用，EventChannel 接收持续的字节流。
 /// 平台只负责 USB，JSON 分帧与鉴权仍在独立的 Dart 业务层完成。
-final class AndroidUsbTransport implements UsbTransport {
+final class NativeUsbTransport implements UsbTransport {
   static const _methods = MethodChannel('tepy/usb');
   static const _nativeEvents = EventChannel('tepy/usb/events');
   final _events = StreamController<UsbEvent>.broadcast();
@@ -64,7 +64,7 @@ final class AndroidUsbTransport implements UsbTransport {
             ),
       ];
     } catch (_) {
-      throw const AppFailure('无法枚举 USB，请确认手机支持 OTG。');
+      throw const AppFailure('无法枚举串口，请检查数据线、驱动或 OTG。');
     }
   }
 
@@ -99,7 +99,7 @@ final class AndroidUsbTransport implements UsbTransport {
       _lease = reply!['lease'] as int;
     } catch (_) {
       if (operation == _operation) await close();
-      throw const AppFailure('USB 未能连接，请允许系统 USB 授权并确认原生 USB 口。');
+      throw const AppFailure('USB 未能连接，请检查系统授权、串口占用和原生 USB 接口。');
     }
   }
 
@@ -132,3 +132,6 @@ final class AndroidUsbTransport implements UsbTransport {
     await _events.close();
   }
 }
+
+// 保留旧名称，避免已有 Android 集成测试或扩展代码中断。
+typedef AndroidUsbTransport = NativeUsbTransport;

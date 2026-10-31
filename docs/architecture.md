@@ -58,3 +58,7 @@ Flutter Mobile 0.1.0 采用 domain / data / application / presentation 分层。
 协议主版本变化新增目录；兼容字段变化更新当前 Schema 和样例。配置版本不支持时返回错误，保留 NVS，不自动擦除。
 
 首版只支持一个活动 Broker、一个蓝牙目标。固件运行时对象存活至重启；网页随应用原子升级。
+
+### Flutter 0.2.0 的平台边界
+
+`apps/mobile-flutter` 同时构建 Android 和 Windows，保留目录名以兼容已有脚本。共享 Dart domain / application / presentation，平台差异集中在 `data/platform_info.dart`、系统存储插件及两端 USB 原生桥。Windows runner 只有生命周期、窗口与串口职责，不解析业务 JSON。主题在 app_theme，导航按宽度自适应，根协议与 Qt / Go 构建继续独立。

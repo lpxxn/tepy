@@ -4,6 +4,7 @@ analyzer:
   exclude:
     - build/**
     - android/**
+    - windows/**
 linter:
   rules:
     avoid_print: true # 凭据和键盘内容不得通过 print 调试输出。

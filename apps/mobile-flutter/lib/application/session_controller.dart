@@ -5,6 +5,7 @@ import 'dart:typed_data';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../data/connection_store.dart';
+import '../data/platform_info.dart';
 import '../data/mqtt_transport.dart';
 import '../domain/commands.dart';
 import '../domain/connection_profile.dart';
@@ -53,7 +54,11 @@ class SessionController extends Notifier<SessionState> {
       unawaited(_subscription?.cancel());
       unawaited(_transport.dispose());
     });
-    return SessionState(nowMs: _clock.nowMs, tickMs: _clock.tickMs);
+    return SessionState(
+      profile: ref.read(defaultProfileProvider),
+      nowMs: _clock.nowMs,
+      tickMs: _clock.tickMs,
+    );
   }
 
   /// async/await 让异步代码按阅读顺序表达；等待存储时不会阻塞界面线程。
@@ -111,9 +116,9 @@ class SessionController extends Notifier<SessionState> {
       await _store.forget();
       if (!_disposed) {
         state = state.copyWith(
-          profile: const ConnectionProfile(),
+          profile: ref.read(defaultProfileProvider),
           clearSavedProfile: true,
-          message: '已清除手机保存的连接信息。',
+          message: '已清除本机保存的连接信息。',
           isError: false,
         );
       }

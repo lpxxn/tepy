@@ -14,5 +14,10 @@ void main() {
       'usb-serial-for-android 3.11.0',
     ], await rootBundle.loadString('third_party/usb-serial-LICENSE.txt'));
   });
+  LicenseRegistry.addLicense(() async* {
+    yield LicenseEntryWithLineBreaks([
+      'Tepy Sans (Noto Sans SC subset)',
+    ], await rootBundle.loadString('assets/fonts/OFL.txt'));
+  });
   runApp(const ProviderScope(child: TepyApp()));
 }

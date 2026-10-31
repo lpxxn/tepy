@@ -69,70 +69,115 @@ class ControlsScreen extends ConsumerWidget {
       IconData icon,
       VoidCallback run, {
       bool extraEnabled = true,
-    }) => Card(
-      child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(
-          horizontal: 20,
-          vertical: 12,
+    }) {
+      final enabled = state.canAct && extraEnabled;
+      final leading = Container(
+        padding: const EdgeInsets.all(11),
+        decoration: BoxDecoration(
+          color: const Color(0xFFF0F2FF),
+          borderRadius: BorderRadius.circular(12),
         ),
-        leading: CircleAvatar(
-          backgroundColor: const Color(0xFFE4F6F1),
-          child: Icon(icon, color: brand),
+        child: Icon(icon, color: enabled ? brand : muted, size: 22),
+      );
+      final caption = Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w700,
+              color: enabled ? ink : muted,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(subtitle, style: const TextStyle(fontSize: 12, color: muted)),
+        ],
+      );
+      final arrow = Icon(
+        Icons.north_east_rounded,
+        color: enabled ? brand : line,
+        size: 19,
+      );
+      return Card(
+        child: InkWell(
+          borderRadius: BorderRadius.circular(20),
+          onTap: enabled ? run : null,
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              // 手机使用横向短卡片，让常用动作少滚动；桌面保留宽松的双列卡片。
+              final compact = constraints.maxWidth < 420;
+              return Padding(
+                padding: EdgeInsets.all(compact ? 18 : 22),
+                child: compact
+                    ? Row(
+                        children: [
+                          leading,
+                          const SizedBox(width: 14),
+                          Expanded(child: caption),
+                          const SizedBox(width: 8),
+                          arrow,
+                        ],
+                      )
+                    : Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(children: [leading, const Spacer(), arrow]),
+                          const SizedBox(height: 18),
+                          caption,
+                        ],
+                      ),
+              );
+            },
+          ),
         ),
-        title: Text(title, style: const TextStyle(fontWeight: FontWeight.w700)),
-        subtitle: Text(subtitle, style: const TextStyle(fontSize: 12)),
-        trailing: const Icon(Icons.chevron_right),
-        enabled: state.canAct && extraEnabled,
-        onTap: state.canAct && extraEnabled ? run : null,
-      ),
-    );
-    return ListView(
-      key: const PageStorageKey('controls'),
-      padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+      );
+    }
+
+    return PageContent(
+      storageKey: const PageStorageKey('controls'),
       children: [
-        const Text(
-          '让 Mac 响应你',
-          style: TextStyle(fontSize: 25, fontWeight: FontWeight.w800),
+        const PageHeading(
+          eyebrow: 'KEYBOARD CONTROL',
+          title: '让 Mac 响应你',
+          subtitle: '从一次唤醒，到一段输入。每次操作都由你发起。',
         ),
-        const SizedBox(height: 8),
-        const Text(
-          '每次操作都由你发起，发送与结果反馈分别显示。',
-          style: TextStyle(color: Colors.blueGrey, fontSize: 13),
+        ResponsiveColumns(
+          first: action(
+            '唤醒屏幕',
+            '轻按一次 Shift，唤醒你的 Mac',
+            Icons.wb_sunny_outlined,
+            () => unawaited(ref.read(sessionProvider.notifier).wake()),
+          ),
+          second: action(
+            '发送文字',
+            '输入英文、数字和符号，使用后清理',
+            Icons.text_fields_rounded,
+            () => unawaited(_input(context, ref, unlock: false)),
+          ),
         ),
-        const SizedBox(height: 20),
-        action(
-          '唤醒屏幕',
-          '发送一次 Shift 按下与释放',
-          Icons.wb_sunny_outlined,
-          () => unawaited(ref.read(sessionProvider.notifier).wake()),
+        const SizedBox(height: 16),
+        ResponsiveColumns(
+          first: action(
+            '按键与组合键',
+            'Command / Option / Control / Shift',
+            Icons.keyboard_command_key_rounded,
+            () => unawaited(_key(context, ref)),
+          ),
+          second: action(
+            '唤醒并输入解锁',
+            '唤醒 → 等待 → 单次输入 → 观察状态',
+            Icons.lock_open_rounded,
+            () => unawaited(_input(context, ref, unlock: true)),
+            extraEnabled: state.profile.agentId.isNotEmpty,
+          ),
         ),
-        const SizedBox(height: 12),
-        action(
-          '发送文字',
-          'ASCII 英文、数字与符号，使用后清理',
-          Icons.text_fields,
-          () => unawaited(_input(context, ref, unlock: false)),
-        ),
-        const SizedBox(height: 12),
-        action(
-          '按键与组合键',
-          'Command / Option / Control / Shift',
-          Icons.keyboard_command_key,
-          () => unawaited(_key(context, ref)),
-        ),
-        const SizedBox(height: 12),
-        action(
-          '唤醒并输入解锁',
-          '唤醒 → 等待 → 单次输入 → 观察状态',
-          Icons.lock_open_outlined,
-          () => unawaited(_input(context, ref, unlock: true)),
-          extraEnabled: state.profile.agentId.isNotEmpty,
-        ),
-        const SizedBox(height: 20),
+        const SizedBox(height: 24),
         SectionCard(
           title: phase,
+          icon: Icons.radio_button_checked_rounded,
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               if (state.busy) ...[
                 const LinearProgressIndicator(),
@@ -161,7 +206,7 @@ class ControlsScreen extends ConsumerWidget {
         const SizedBox(height: 16),
         const Text(
           '请确认 Mac 的输入焦点和美式 ABC 布局。未知状态不等于解锁；取消无法撤回已经提交的按键。',
-          style: TextStyle(fontSize: 12, color: Colors.blueGrey),
+          style: TextStyle(fontSize: 12, color: muted),
         ),
       ],
     );

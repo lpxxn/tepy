@@ -248,3 +248,20 @@ TLS 卡片和 ExpansionTile 内部 Material 使用相同的 22 像素圆角，�
 0.1.3 格式检查、静态检查、31 项自动测试及 Release arm64 构建通过。新增控制器回归覆盖已保存档案恢复、临时连接后快捷重连、重复调用、失败保存、清除与重新保存；320 像素宽界面验证状态页入口、连接中禁用及清除后隐藏。按住状态与快捷入口截图已检查。
 
 已覆盖安装并启动日常版，核对 versionName 0.1.3 / versionCode 4，未卸载或清除应用数据。
+
+### Tepy Flutter 0.2.0：现代界面与 Windows
+
+2026-10-31，Flutter 3.47.9 / Dart 3.13.7 / Riverpod 3.4.3。统一靛蓝主题、内置 OFL 中文字体、深色 Mac 状态卡与紧凑手机操作卡；Windows 侧栏、宽屏分栏及受限宽度表单。手机、窗口使用同一业务与协议，不改固件 / Go / Qt。
+
+- 格式与 `flutter analyze` 通过，32 项自动测试通过。新增 1440 × 1000 桌面导航、缩小至 800 × 700 切换底栏、恢复窗口后草稿保留，以及桌面文字操作。保留 320 像素、TLS 展开/按住裁剪、连接不闪烁、保存档案和输入不持久化回归。
+- Windows 11 x64 / Visual Studio 2022 17.14.41 / SDK 10.0.26100.0 Release 构建通过。首次构建因系统未装 ATL 缺少 atlstr.h，经官方 Visual Studio Installer 补装 v143 ATL 后通过，未修改安全存储插件。
+- 原生 Windows 集成场景通过：随机安全存储条目写 / 读 / 删、真实 ESP32 COM 枚举和双向收发、关闭重新打开、本机 Broker 的只读连接 / 设备状态及连续 20 秒稳定观察、四页导航和页面刷新。串口使用明确无效测试口令，仅收到 unauthorized；未读取实际管理口令、保存配置或发布键盘指令。
+- 原生 Windows 窗口已启动，能显示真实 ESP32 / BLE / Mac 状态。桌面与手机中文预览、TLS 按住效果已检查。字体来自 Google Fonts Noto Sans SC，派生名 Tepy Sans，源 Hash 和许可记录在应用 THIRD_PARTY.md。
+
+原生 COM 的有效口令读取 / 保存 / 重启、拔线恢复、远程 TLS / mTLS 以及 Windows 发起完整 Mac 解锁仍待对应实机验收；不将无效口令的通信测试当作配置写入验收。
+
+Find X9 / Android 17 的独立测试 APK 已在 0.2.0 通过原生 drive 场景（约 61 秒）：安全存储随机条目、USB 枚举、四页导航、TLS 反复展开 / 收起，以及真实 Broker、ESP32 和 Mac 状态连续 45 秒稳定，无中途清空或按钮禁用。测试不输入 Mac 密码。APK 的独立包名 com.tepy.tepy_mobile.debug 已在安装前核对；首次调试连接受下载代理影响，退出后令本机 VM Service 绕过代理，再次运行通过。
+
+最终交付已完成：日常 Android 0.2.0 / versionCode 5 使用 adb install -r 覆盖安装并启动，未卸载或清除应用数据；实机截图确认新字体、主题及已保存设备入口正常。Release APK 签名校验通过，应用 AOT 库为 arm64。Windows 便携包在仅含系统目录的 PATH 下成功启动，并恢复已有安全存储档案，未自动连接或执行动作。
+
+`flutter-windows.ps1 -Check -Package` 和 `mobile.ps1 -Package` 已实际运行。Windows 包含完整 Flutter bundle、native_assets.json、x64 CRT、源码、协议、许可和说明；字体随 APK / Windows assets 离线提供。两个发布目录的 SHA256SUMS 全部核对通过，Windows ZIP 完整性检查通过；排除 SDK、缓存、keystore、local.properties 与本地配置。

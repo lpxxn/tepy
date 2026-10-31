@@ -10,7 +10,7 @@ import '../domain/snapshots.dart';
 
 /// USB 与 MQTT 是独立连接；没有 Wi-Fi 也能经 USB 管理 ESP32。
 final usbTransportFactoryProvider = Provider<UsbTransport Function()>(
-  (ref) => AndroidUsbTransport.new,
+  (ref) => NativeUsbTransport.new,
 );
 final usbTokenStoreProvider = Provider<UsbTokenStore>(
   (ref) => SecureUsbTokenStore(),
@@ -51,7 +51,7 @@ final class SecureUsbTokenStore implements UsbTokenStore {
     try {
       await _storage.delete(key: _key);
     } catch (_) {
-      throw const AppFailure('无法清除手机保存的 USB 管理口令。');
+      throw const AppFailure('无法清除本机保存的 USB 管理口令。');
     }
   }
 }
@@ -63,7 +63,7 @@ final class UsbState {
     this.busy = false,
     this.config,
     this.status,
-    this.message = '用 OTG 线连接 ESP32 原生 USB 口，然后刷新设备。',
+    this.message = '连接 ESP32 原生 USB 口，然后刷新设备。',
     this.isError = false,
   });
   final List<UsbCandidate> devices;
@@ -169,7 +169,7 @@ class UsbController extends Notifier<UsbState> {
       state = state.copyWith(
         devices: List.unmodifiable(devices),
         message: devices.isEmpty
-            ? '没有发现 ESP32 原生 USB 串口，请确认 OTG 和数据线。'
+            ? '没有发现 ESP32 原生 USB 串口，请检查数据线、驱动或 OTG。'
             : '请选择设备并填写管理口令。',
       );
     }

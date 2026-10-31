@@ -9,6 +9,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:tepy_mobile/app/tepy_app.dart';
 import 'package:tepy_mobile/application/providers.dart';
+import 'package:tepy_mobile/data/platform_info.dart';
 import 'package:tepy_mobile/application/usb_controller.dart';
 
 import 'support/fakes.dart';
@@ -28,14 +29,10 @@ void main() {
       )..addFont(Future.value(ByteData.sublistView(await icons.readAsBytes())));
       await loader.load();
     }
-    // 只为 Windows 上的测试截图读取已安装的中文字体，不把该字体打包进 APK。
-    final file = File('C:/Windows/Fonts/msyh.ttc');
-    if (await file.exists()) {
-      final loader = FontLoader('TestChinese')
-        ..addFont(Future.value(ByteData.sublistView(await file.readAsBytes())));
-      await loader.load();
-      font = 'TestChinese';
-    }
+    final loader = FontLoader('TepySans')
+      ..addFont(rootBundle.load('assets/fonts/TepySans.ttf'));
+    await loader.load();
+    font = 'TepySans';
   });
 
   Future<
@@ -46,8 +43,8 @@ void main() {
       void Function() dispose,
     })
   >
-  mount(WidgetTester tester, {double width = 390}) async {
-    tester.view.physicalSize = Size(width, 844);
+  mount(WidgetTester tester, {double width = 390, double height = 844}) async {
+    tester.view.physicalSize = Size(width, height);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
@@ -57,6 +54,7 @@ void main() {
         usb = FakeUsb();
     final container = ProviderContainer(
       overrides: [
+        appPlatformProvider.overrideWithValue(AppPlatform.android),
         clockProvider.overrideWithValue(clock),
         connectionStoreProvider.overrideWithValue(store),
         transportFactoryProvider.overrideWithValue(() => broker),
@@ -343,4 +341,58 @@ void main() {
     app.dispose();
     await tester.pump();
   });
+  testWidgets(
+    'desktop navigation adapts when resizing and actions stay reachable',
+    (tester) async {
+      final app = await mount(tester, width: 1440, height: 1000);
+      await app.container.read(sessionProvider.notifier).connect(testProfile);
+      await tester.pumpAndSettle();
+      expect(find.byType(NavigationBar), findsNothing);
+      expect(find.text('TEPY CONNECT'), findsOneWidget);
+      await preview(tester, 'windows-dashboard');
+      for (final tab in ['操作', '设备', '连接']) {
+        await tester.tap(find.text(tab).last);
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull);
+        await preview(tester, 'windows-$tab');
+      }
+      await app.container.read(sessionProvider.notifier).disconnect();
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.byKey(const Key('brokerField')),
+        'mqtt://resize.example:1883',
+      );
+      tester.view.physicalSize = const Size(800, 700);
+      await tester.pumpAndSettle();
+      expect(find.byType(NavigationBar), findsOneWidget);
+      expect(tester.takeException(), isNull);
+      tester.view.physicalSize = const Size(1440, 1000);
+      await tester.pumpAndSettle();
+      expect(find.byType(NavigationBar), findsNothing);
+      expect(
+        tester
+            .widget<TextField>(find.byKey(const Key('brokerField')))
+            .controller!
+            .text,
+        'mqtt://resize.example:1883',
+      );
+      await app.container.read(sessionProvider.notifier).connect(testProfile);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('操作').last);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('发送文字'));
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.byKey(const Key('actionInput')),
+        'DesktopExample!',
+      );
+      await tester.tap(find.byKey(const Key('confirmInput')));
+      await tester.pumpAndSettle();
+      expect(app.broker.sent.single['type'], 'type_text');
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox.shrink());
+      app.dispose();
+      await tester.pump();
+    },
+  );
 }

@@ -14,7 +14,7 @@
 
 以上路径相对于 `apps/mobile-flutter`。一次唤醒的数据流：按钮 → `SessionController.wake()` → 校验快照 → 编码命令 → `BrokerTransport.publish()` → ESP32 回复 → 创建新 `SessionState` → Riverpod 通知页面重建。页面不拼 MQTT JSON，网络回调不直接修改按钮。
 
-USB 的流程：页面 → `UsbController` → `SerialManagement` → `AndroidUsbTransport` → Kotlin `UsbBridge` → 原生串口。只有最底层依赖 Android API；分帧、鉴权和配置规则可以在电脑上运行 Dart 测试。
+USB 的流程：页面 → `UsbController` → `SerialManagement` → `NativeUsbTransport` → Kotlin / C++ `UsbBridge` → 原生串口。只有最底层依赖 Android / Windows API；分帧、鉴权和配置规则可以在电脑上运行 Dart 测试。
 
 ## Dart 语法在项目里的用法
 
@@ -101,3 +101,15 @@ protocol_test 检查领域边界；session_test 用 FakeAsync 快进等待，检
 建议练习：先给状态页增加“固件版本”，再增加 MQTT 密码的显示/隐藏开关，最后给 USB 状态增加一个只读字段。先找现有模型，再沿既有分层修改，避免在 Widget 中直接订阅原始 MQTT。
 
 官方参考：[Dart 语言](https://dart.dev/language)、[Flutter 布局](https://docs.flutter.dev/ui/layout)、[Riverpod](https://riverpod.dev/docs/introduction/getting_started)、[平台通道](https://docs.flutter.dev/platform-integration/platform-channels)。
+
+## 自适应界面与 Windows（0.2.0）
+
+`AppTheme.light()` 把字体、颜色、输入框、卡片和按钮集中管理。`TepySans` 是应用资源，不依赖手机的个性字体，也不在运行时下载。新增页面优先使用 `PageHeading` / `SectionCard`，以获得一致间距。
+
+`LayoutBuilder` 提供父级实际约束，比只判断 Platform.isWindows 更适合布局：大于等于 1000 像素使用侧栏，窗口变小时切换底栏。`ResponsiveColumns` 决定并排或纵向，`PageContent` 通过 maxWidth 限制表单宽度。不要把窄屏的 Column 直接拉伸到整个桌面，也不要为中文内容强行固定卡片高度。
+
+`platform_info.dart` 的 Provider 只负责有平台语义的默认值与说明，如 Windows 同机 Broker 和 Android OTG 指引；测试通过 override 模拟平台。业务模型不直接 import dart:io。
+
+Windows `usb_bridge.cpp` 实现同样的 MethodChannel / EventChannel。SetupAPI 枚举 VID 0x303A 串口，Win32 重叠 I/O 在工作线程读写，窗口消息把回执送回 Flutter 平台线程。关闭事件取消 I/O，lease 忽略旧连接字节，写队列有长度上限。Dart 的分帧、逐请求鉴权、配置校验、超时不重发等规则无需再实现一遍。
+
+先读 Dart 接口，再读原生桥；`windows_smoke_test.dart` 使用随机存储条目和无效测试口令验证原生通信，不读取用户口令或修改设备配置。

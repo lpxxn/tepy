@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../application/providers.dart';
+import '../../data/platform_info.dart';
 import '../../application/session_state.dart';
 import '../../domain/connection_profile.dart';
 import '../widgets/common.dart';
@@ -96,7 +97,7 @@ class _ConnectionScreenState extends ConsumerState<ConnectionScreen> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('清除保存的连接？'),
-        content: const Text('只清除这台手机保存的连接信息，ESP32 和 Mac 配置不变。'),
+        content: const Text('只清除本机保存的连接信息，ESP32 和 Mac 配置不变。'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -160,28 +161,18 @@ class _ConnectionScreenState extends ConsumerState<ConnectionScreen> {
         ),
       ),
     );
-    return ListView(
-      key: const PageStorageKey('connection'),
-      padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+    final windows = ref.watch(appPlatformProvider) == AppPlatform.windows;
+    return PageContent(
+      storageKey: const PageStorageKey('connection'),
+      maxWidth: 820,
       children: [
-        const Text(
-          '连接你的设备',
-          style: TextStyle(fontSize: 25, fontWeight: FontWeight.w800),
+        PageHeading(
+          eyebrow: 'CONNECTION',
+          title: '连接你的设备',
+          subtitle: windows
+              ? '连接 Broker，随时查看 Mac 与键盘设备的状态。'
+              : '使用 Broker 的局域网地址，Mac 更换 IP 后无需重新配置。',
         ),
-        const SizedBox(height: 8),
-        TextButton(
-          onPressed: () => showLicensePage(
-            context: context,
-            applicationName: 'Tepy Mobile',
-            applicationVersion: '0.1.3',
-          ),
-          child: const Text('开源许可'),
-        ),
-        const Text(
-          '手机使用 Broker 的局域网地址。Mac 更换 IP 后，无需修改代理 ID。',
-          style: TextStyle(color: Colors.blueGrey, fontSize: 13),
-        ),
-        const SizedBox(height: 20),
         SectionCard(
           title: 'MQTT Broker',
           subtitle: '连接信息可记住，Mac 登录密码不在此处填写。',
@@ -191,7 +182,9 @@ class _ConnectionScreenState extends ConsumerState<ConnectionScreen> {
                 _broker,
                 'Broker 地址',
                 'brokerField',
-                helper: '例如 mqtt://192.168.50.99:1883；手机上不要填 127.0.0.1',
+                helper: windows
+                    ? 'Broker 在本机时填 mqtt://127.0.0.1:1883；也可填写远程地址'
+                    : '例如 mqtt://192.168.50.99:1883；手机上不要填 127.0.0.1',
               ),
               field(_device, 'ESP32 设备 ID', 'deviceField'),
               field(_agent, 'Mac 代理 ID', 'agentField'),
@@ -312,11 +305,19 @@ class _ConnectionScreenState extends ConsumerState<ConnectionScreen> {
               ? () => unawaited(_forget())
               : null,
           icon: const Icon(Icons.delete_outline),
-          label: const Text('清除手机保存的连接'),
+          label: const Text('清除本机保存的连接'),
+        ),
+        TextButton(
+          onPressed: () => showLicensePage(
+            context: context,
+            applicationName: 'Tepy',
+            applicationVersion: '0.2.0',
+          ),
+          child: const Text('开源许可'),
         ),
         const SizedBox(height: 8),
         const Text(
-          'Tepy Mobile 0.1.3 · 连接时恢复状态，不积压离线动作。',
+          'Tepy 0.2.0 · Android & Windows',
           textAlign: TextAlign.center,
           style: TextStyle(fontSize: 11, color: Colors.blueGrey),
         ),

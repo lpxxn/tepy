@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../application/usb_controller.dart';
+import '../../data/platform_info.dart';
 import '../../domain/connection_profile.dart';
 import '../../domain/serial_management.dart';
 import '../../domain/snapshots.dart';
@@ -200,20 +201,18 @@ class _UsbScreenState extends ConsumerState<UsbScreen>
       ),
     );
     final status = state.status;
-    return ListView(
-      key: const PageStorageKey('usb'),
-      padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+    final windows = ref.watch(appPlatformProvider) == AppPlatform.windows;
+    return PageContent(
+      storageKey: const PageStorageKey('usb'),
+      maxWidth: 820,
       children: [
-        const Text(
-          'USB 设备管理',
-          style: TextStyle(fontSize: 25, fontWeight: FontWeight.w800),
+        PageHeading(
+          eyebrow: 'DEVICE MANAGEMENT',
+          title: 'USB 设备管理',
+          subtitle: windows
+              ? '用数据线连接 ESP32-S3 原生 USB 口，选择 COM 串口后读取配置。'
+              : '手机 → USB-C OTG → 数据线 → ESP32-S3 原生 USB 口。无需先配 Wi-Fi。',
         ),
-        const SizedBox(height: 8),
-        const Text(
-          '手机 → USB-C OTG → 数据线 → ESP32-S3 原生 USB 口。无需先配 Wi-Fi，仍需管理口令。',
-          style: TextStyle(fontSize: 13, color: Colors.blueGrey),
-        ),
-        const SizedBox(height: 20),
         SectionCard(
           title: '连接 ESP32',
           child: Column(
@@ -223,7 +222,9 @@ class _UsbScreenState extends ConsumerState<UsbScreen>
                 key: ValueKey('ports-${state.devices.map((d) => d.id).join()}'),
                 initialValue: selected,
                 isExpanded: true,
-                decoration: const InputDecoration(labelText: '手机检测到的原生 USB 串口'),
+                decoration: InputDecoration(
+                  labelText: windows ? '检测到的 ESP32 COM 串口' : '手机检测到的原生 USB 串口',
+                ),
                 items: [
                   for (final device in state.devices)
                     DropdownMenuItem(
@@ -292,7 +293,7 @@ class _UsbScreenState extends ConsumerState<UsbScreen>
                         if (mounted) setState(() => _token.clear());
                       }
                     : null,
-                child: const Text('清除手机保存的管理口令'),
+                child: const Text('清除本机保存的管理口令'),
               ),
             ],
           ),
@@ -351,7 +352,7 @@ class _UsbScreenState extends ConsumerState<UsbScreen>
         const SizedBox(height: 16),
         SectionCard(
           title: '网络配置',
-          subtitle: '读取只返回密码是否已设置。保留密码会省略字段，清除会发送空字符串。',
+          subtitle: '可保留现有密码，或设置新密码。保存后重启设备使配置生效。',
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
