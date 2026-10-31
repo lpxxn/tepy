@@ -46,7 +46,9 @@ Qt 位于独立的 `apps/desktop-qt` CMake 工程。`DeviceClient` 将同一个�
 
 从桌面 0.1.1 起，`busy()` 表示存在待回复请求，`exclusiveBusy()` 单独表示前台独占操作。状态／扫描轮询使用后台模式，不禁用表单。用户操作可以取消对旧后台读取的等待，再立即发起请求；HTTP 忽略已取消的回复对象，串口忽略旧 ID。配置保存、配对、重启和 OTA 等前台操作不被其他请求取消，也不自动重发。样式属性未变化时不重新 polish；状态详情按需更新，并保留用户的选择和滚动位置。
 
-桌面 0.2.0 的 `AgentClient` 使用独立网络管理器和五秒定时器，校验 Mac 状态版本、身份及租约；`AgentPage` 展示锁定、HID、MQTT 和电源事件。Mac 服务与 ESP32 使用不同口令，连接及失败状态互不影响。只读请求禁止重定向，不保存口令。
+桌面 0.2.0 的 `AgentClient` 使用独立网络管理器和五秒定时器，校验 Mac 状态版本、身份及租约；`AgentPage` 展示锁定、HID、MQTT 和电源事件。Mac 服务与 ESP32 使用不同口令，连接及失败状态互不影响。只读请求禁止重定向。0.3.0 起服务口令交由系统凭据库保存。
+
+桌面 0.3.0 的 `MqttControl` 管理 Qt MQTT／TLS、精确主题订阅、状态租约与单个待回复动作；每次重连创建新客户端，不重放旧动作。`KeyboardJob` 在 GUI 事件循环中用定时器处理唤醒、等待、输入与 Mac 反馈，不阻塞线程，不保存输入。`KeyboardPage` 提供独立连接与结果展示，并向 Mac 页推送 MQTT 状态；HTTP 诊断可单独使用。`ConnectionStore` 将非秘密设置交给 QSettings、口令交给 Windows Credential Manager／macOS Keychain，凭据库失败时不回退明文。
 
 Go 的 `internal/platform` 隔离 CGo / C++23 原生桥接和 hidutil 解析；`service` 合并采样与事件，`model` 提供线程安全快照；`mqtt`、`api` 只发布／读取快照；`config` 负责 TOML、严格校验和 TLS；`launchd` 管理当前 GUI 用户的服务。分布式通知在主线程 CFRunLoop 中处理，采样与 MQTT 在独立 goroutine 中运行。收到系统睡眠询问后立即确认，不因网络请求阻止睡眠。其他平台只提供测试 stub，不能安装为 Mac 服务。目录与部署细节见 [Go 服务文档](macos-agent.md)。
 

@@ -22,7 +22,7 @@ bool validateAgentState(const QJsonObject &s, qint64 now, QString &error) {
         error = QStringLiteral("Mac 服务回复格式不正确或版本不受支持。");
         return false;
     };
-    if (s.value(QStringLiteral("v")).toInt() != 1 ||
+    if (s.value(QStringLiteral("v")) != QJsonValue(1) ||
         s.value(QStringLiteral("platform")).toString() != QStringLiteral("darwin") ||
         !QRegularExpression(QStringLiteral("^[A-Za-z0-9_.-]{1,64}$"))
              .match(s.value(QStringLiteral("agent_id")).toString())
@@ -58,7 +58,9 @@ bool validateAgentState(const QJsonObject &s, qint64 now, QString &error) {
         !QStringList{QStringLiteral("locked"), QStringLiteral("unlocked"),
                      QStringLiteral("unknown")}
              .contains(session.value(QStringLiteral("lock_state")).toString()) ||
-        !session.value(QStringLiteral("lock_source")).isString())
+        !QStringList{QStringLiteral("cg_session_property"), QStringLiteral("io_console_property"),
+                     QStringLiteral("screen_notification"), QStringLiteral("unavailable")}
+             .contains(session.value(QStringLiteral("lock_source")).toString()))
         return fail();
     const auto hidState = hid.value(QStringLiteral("state")).toString();
     if (!hid.value(QStringLiteral("available")).isBool() ||
@@ -66,6 +68,9 @@ bool validateAgentState(const QJsonObject &s, qint64 now, QString &error) {
                      QStringLiteral("unknown")}
              .contains(hidState) ||
         !hid.value(QStringLiteral("target_device_id")).isString() ||
+        !QRegularExpression(QStringLiteral("^([a-f0-9]{12})?$"))
+             .match(hid.value(QStringLiteral("target_device_id")).toString())
+             .hasMatch() ||
         !hid.value(QStringLiteral("devices")).isArray() ||
         hid.value(QStringLiteral("devices")).toArray().size() > 8)
         return fail();
@@ -139,7 +144,7 @@ bool AgentClient::start(const QString &address, const QString &token) {
     QString error;
     const auto url = deviceUrl(address, error);
     if (url.isEmpty()) {
-        emit failed(QStringLiteral("请输入 Mac 服务地址，例如 http://192.168.50.2:18765。"));
+        emit failed(QStringLiteral("请输入 Mac 服务地址，例如 http://192.168.50.246:18765。"));
         return false;
     }
     if (token.toUtf8().size() < 32 || token.toUtf8().size() > 128 ||

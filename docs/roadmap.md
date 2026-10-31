@@ -8,6 +8,8 @@ Windows 构建、运行包、Qt 自动测试及开发板串口鉴权链路已验
 
 0.2.0 增加独立“Mac 状态”页，通过带口令的只读 HTTP 展示 Go 服务状态；已连接目标 Mac 验证，刷新不占用 ESP32 管理通道。
 
+0.3.0 增加 Qt MQTT、键盘控制和 Mac MQTT 反馈，支持唤醒、文字、组合键与单次解锁流程。服务地址和口令可恢复，口令交由系统凭据库；键盘输入不保存。已通过自动执行／故障测试、Windows 凭据库及真实 Broker 只读检查；Qt 发起的真实 Mac 解锁与 TLS／mTLS 连接仍需专项验收。下一轮可增加设备列表、发布自动化及多平台构建。
+
 ## Go：apps/macos-agent
 
 0.1.0 已实现独立 Go module、TOML 配置、MQTT 心跳／遗嘱／重连、Mac 会话与锁定状态、原生电源事件、Tepy HID 诊断、只读 HTTP 和当前用户 LaunchAgent。支持 MQTT 用户名密码、自定义 CA 与客户端证书；目标 Mac 的后台部署、真实 Broker 上报和锁屏／解锁已通过验证。见 [服务文档](macos-agent.md)。

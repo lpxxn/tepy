@@ -1,4 +1,5 @@
 #include "agent_page.hpp"
+#include "connection_store.hpp"
 #include "ui.hpp"
 #include <QDateTime>
 #include <QHBoxLayout>
@@ -17,7 +18,7 @@ AgentPage::AgentPage(QWidget *parent) : QWidget(parent), client_(this) {
                  QStringLiteral("连接运行在 Mac 上的 Go 服务，查看会话、睡眠与键盘诊断。"), this);
     address_ = new QLineEdit(connection.widget);
     address_->setObjectName(QStringLiteral("macAgentAddress"));
-    address_->setPlaceholderText(QStringLiteral("http://192.168.50.2:18765"));
+    address_->setPlaceholderText(QStringLiteral("http://192.168.50.246:18765"));
     token_ = new QLineEdit(connection.widget);
     token_->setObjectName(QStringLiteral("macAgentToken"));
     token_->setEchoMode(QLineEdit::Password);
@@ -38,9 +39,10 @@ AgentPage::AgentPage(QWidget *parent) : QWidget(parent), client_(this) {
     buttons->addWidget(badge_);
     connection.layout->addLayout(buttons);
     layout->addWidget(connection.widget);
-    notice_ = ui::label(
-        QStringLiteral("口令与 ESP32 管理口令独立。此页面每五秒只读刷新，不保存凭据或执行解锁。"),
-        "notice", this);
+    notice_ =
+        ui::label(QStringLiteral(
+                      "MQTT 状态由键盘控制页接入，也可连接 HTTP 诊断。HTTP 口令由系统凭据库记住。"),
+                  "notice", this);
     layout->addWidget(notice_);
     auto *metrics = new QHBoxLayout;
     metrics->setSpacing(12);
@@ -89,8 +91,27 @@ AgentPage::AgentPage(QWidget *parent) : QWidget(parent), client_(this) {
             raw_->setPlainText(
                 QString::fromUtf8(QJsonDocument(latest_).toJson(QJsonDocument::Indented)));
     });
-    connect(connect_, &QPushButton::clicked, this,
-            [this] { client_.start(address_->text(), token_->text()); });
+    const auto saved = ConnectionStore::load(QStringLiteral("mac"));
+    address_->setText(saved.fields.value(QStringLiteral("address")).toString());
+    token_->setText(saved.secret);
+    const auto remember = [this] {
+        QString error;
+        if (!ConnectionStore::save(QStringLiteral("mac"),
+                                   {{QStringLiteral("address"), address_->text()}}, token_->text(),
+                                   error))
+            showFailure(error);
+    };
+    connect(address_, &QLineEdit::editingFinished, this, remember);
+    connect(token_, &QLineEdit::editingFinished, this, remember);
+    connect(connect_, &QPushButton::clicked, this, [this] {
+        if (client_.start(address_->text(), token_->text())) {
+            QString error;
+            if (!ConnectionStore::save(QStringLiteral("mac"),
+                                       {{QStringLiteral("address"), address_->text()}},
+                                       token_->text(), error))
+                showFailure(error);
+        }
+    });
     connect(disconnect_, &QPushButton::clicked, &client_, &AgentClient::stop);
     connect(&client_, &AgentClient::activeChanged, this, [this](bool active) {
         address_->setEnabled(!active);
@@ -184,5 +205,21 @@ void AgentPage::showFailure(const QString &message) {
         label->setText(QStringLiteral("未知"));
     notice_->setText(message);
     ui::property(notice_, "kind", QStringLiteral("error"));
+}
+void AgentPage::showMqttState(const QJsonObject &state) {
+    if (client_.active())
+        return;
+    if (state.isEmpty()) {
+        showFailure(
+            QStringLiteral("尚无有效 MQTT 状态；在键盘控制页连接 Broker，或使用 HTTP 诊断。"));
+        return;
+    }
+    showState(state);
+    badge_->setText(QStringLiteral("MQTT · ") + state.value(QStringLiteral("name")).toString());
+}
+void AgentPage::forget() {
+    client_.stop();
+    token_->clear();
+    address_->clear();
 }
 } // namespace tepy::desktop

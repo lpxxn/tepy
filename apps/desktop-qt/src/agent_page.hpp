@@ -11,6 +11,8 @@ class AgentPage final : public QWidget {
     Q_OBJECT
   public:
     explicit AgentPage(QWidget *parent = nullptr);
+    void showMqttState(const QJsonObject &state);
+    void forget();
 
   private:
     void showState(const QJsonObject &state);

@@ -1,6 +1,7 @@
 #include "agent_client.hpp"
 #include "agent_page.hpp"
 #include "config_form.hpp"
+#include "connection_store.hpp"
 #include "device_client.hpp"
 #include "main_window.hpp"
 #include "protocol.hpp"
@@ -165,6 +166,7 @@ class DesktopTests : public QObject {
     Q_OBJECT
   private slots:
     void initTestCase() {
+        tepy::desktop::ConnectionStore::setEnabled(false);
 #ifdef Q_OS_WIN
         // The offscreen platform does not enumerate Windows system fonts.
         const auto fontId =
@@ -569,11 +571,11 @@ class DesktopTests : public QObject {
         tabs->setCurrentIndex(0);
         showDetails->click();
         QTRY_VERIFY(details->isVisible());
-        QCOMPARE(QJsonDocument::fromJson(details->toPlainText().toUtf8())
-                     .object()
-                     .value(QStringLiteral("now"))
-                     .toInt(),
-                 3);
+        QTRY_COMPARE(QJsonDocument::fromJson(details->toPlainText().toUtf8())
+                         .object()
+                         .value(QStringLiteral("now"))
+                         .toInt(),
+                     3);
         auto cursor = details->textCursor();
         cursor.setPosition(0);
         cursor.setPosition(20, QTextCursor::KeepAnchor);
@@ -661,7 +663,7 @@ class DesktopTests : public QObject {
         };
         MainWindow window;
         auto *tabs = window.findChild<QTabWidget *>();
-        QCOMPARE(tabs->count(), 5);
+        QCOMPARE(tabs->count(), 6);
         tabs->setCurrentIndex(4);
         window.show();
         auto *address = window.findChild<QLineEdit *>(QStringLiteral("macAgentAddress"));

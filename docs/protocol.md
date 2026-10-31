@@ -115,3 +115,13 @@ USB 回复和普通启动日志可能共用串口；客户端只解析以 `@tepy
 HTTP 仅提供 `GET /api/v1/agent/status`，使用独立的 `Authorization: Bearer <TOML http.token>`，返回相同 JSON。默认监听 `127.0.0.1:18765`；跨机部署需显式配置监听地址。无 Cookie／CORS，拒绝 Origin、请求体、查询参数和写方法，响应 `Cache-Control: no-store`。错误为 `{"error":"code"}`：unauthorized（401）、origin_forbidden（403）、not_found（404）、method_not_allowed（405）、unexpected_body（400）、state_stale（503）。
 
 Qt 使用独立 HTTP 客户端，每五秒采样、请求四秒超时，不重定向；连接内固定 agent_id，身份改变时停止。暂时断网时显示未知并继续读取，鉴权或结构错误时停止。Go 的 MQTT TLS、CA／客户端证书与部署方法见 [服务文档](macos-agent.md)。
+
+## Qt 0.3.0 MQTT 控制约定
+
+复用上述 v1 消息，不新增 ESP32 或 Go 端点。Qt 使用 MQTT 3.1.1、干净会话和随机客户端 ID，精确订阅选定设备的 state／reply，以及可选代理的 state／availability。先完成订阅，再允许动作。状态只用于展示与执行条件，不接收或执行 Broker 传来的命令。
+
+ESP32 状态的 now 需大于本机当前时间减十五秒，不能超过未来五秒；本地接收时间超过十五秒也失效。还需 online、time_ready、BLE ready、MQTT connected 和非 busy。动作使用随机请求 ID、当前 session、十秒 expires_at，发布 QoS 1、retain=false。Broker PUBACK 最多等六秒，设备执行回执按最大按键间隔留足时间；只接收当前 ID 的非 retained 合法回复。失败或不确定结果不自动重发。
+
+解锁是 Qt 的单次流程：完整验证输入 → wake → sent → 等待设置的间隔 → 等待唤醒回执之后采样的有效 Mac 锁定／目标键盘状态 → type_text → sent → 观察新的 Mac unlocked 状态。额外等待及观察各最多二十秒；未知状态不作为解锁成功，也不重复密码。Mac 已报告未锁定时不发送密码。会话改变、设备／BLE 中断或过期取消后续步骤；取消无法撤回已提交动作。
+
+连接丢失后使用新 QMqttClient，清除旧请求及状态，退避一至三十秒恢复订阅；不恢复旧流程或离线动作。详细使用、状态边界与连接凭据存储见 [键盘控制文档](keyboard-control.md)。

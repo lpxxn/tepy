@@ -1,5 +1,7 @@
 #include "main_window.hpp"
 #include "agent_page.hpp"
+#include "connection_store.hpp"
+#include "keyboard_page.hpp"
 #include "ui.hpp"
 #include <QCloseEvent>
 #include <QFileDialog>
@@ -54,19 +56,23 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
     side->addLayout(brandRow);
     const QStringList titles{QStringLiteral("设备概览"), QStringLiteral("网络配置"),
                              QStringLiteral("蓝牙连接"), QStringLiteral("固件管理"),
-                             QStringLiteral("Mac 状态")};
+                             QStringLiteral("Mac 状态"), QStringLiteral("键盘控制")};
     const QStringList subtitles{QStringLiteral("连接你的设备，掌握每一项运行状态。"),
                                 QStringLiteral("让设备接入 Wi-Fi，配置 MQTT 与连接参数。"),
                                 QStringLiteral("配对你的 Mac，并管理蓝牙键盘连接。"),
                                 QStringLiteral("升级应用固件，或通过 USB 恢复设备。"),
-                                QStringLiteral("查看 Mac 会话、睡眠唤醒与键盘注册结果。")};
+                                QStringLiteral("查看 Mac 会话、睡眠唤醒与键盘注册结果。"),
+                                QStringLiteral("通过 MQTT 唤醒和输入，观察 Mac 的实际状态反馈。")};
     auto *navigation = new QListWidget(sidebar);
     navigation->setObjectName(QStringLiteral("navigation"));
     navigation->setIconSize(QSize(20, 20));
     for (int i = 0; i < titles.size(); ++i)
         navigation->addItem(new QListWidgetItem(ui::navigationIcon(i), titles[i]));
     side->addWidget(navigation, 1);
-    side->addWidget(ui::label(QStringLiteral("ESP32-S3\nDesktop 0.2.0"), "sidebarFooter", sidebar));
+    auto *forget = ui::button(QStringLiteral("清除保存的连接"), "secondary", sidebar);
+    forget->setObjectName(QStringLiteral("forgetConnections"));
+    side->addWidget(forget);
+    side->addWidget(ui::label(QStringLiteral("ESP32-S3\nDesktop 0.3.0"), "sidebarFooter", sidebar));
     root->addWidget(sidebar);
     auto *main = new QWidget(central);
     main->setObjectName(QStringLiteral("mainArea"));
@@ -138,7 +144,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
     connectionActions->addWidget(connect_);
     connectionActions->addStretch();
     auto *credentialNote =
-        ui::label(QStringLiteral("口令仅在本次运行中使用"), "muted", connectionCard.widget);
+        ui::label(QStringLiteral("连接口令由系统凭据库记住"), "muted", connectionCard.widget);
     credentialNote->setWordWrap(false);
     connectionActions->addWidget(credentialNote);
     connectionDetailsLayout->addLayout(connectionActions);
@@ -225,9 +231,9 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
     guide.layout->addWidget(
         ui::step(QStringLiteral("02"), QStringLiteral("连接你的 Mac"),
                  QStringLiteral("开启蓝牙配对窗口，完成配对及 ANSI 键盘布局识别。"), guide.widget));
-    guide.layout->addWidget(ui::step(QStringLiteral("03"), QStringLiteral("测试唤醒与输入"),
-                                     QStringLiteral("使用 MQTT 工具发送普通文字，再验证睡眠唤醒。"),
-                                     guide.widget));
+    guide.layout->addWidget(
+        ui::step(QStringLiteral("03"), QStringLiteral("测试唤醒与输入"),
+                 QStringLiteral("在“键盘控制”页连接 MQTT，测试输入与睡眠唤醒。"), guide.widget));
     statusLayout->addWidget(guide.widget);
     statusLayout->addStretch();
     tabs->addTab(scrollPage(statusPage), titles[0]);
@@ -366,7 +372,32 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
     firmwareLayout->addWidget(flashCard.widget);
     firmwareLayout->addStretch();
     tabs->addTab(scrollPage(firmwarePage), titles[3]);
-    tabs->addTab(scrollPage(new AgentPage(tabs)), titles[4]);
+    agentPage_ = new AgentPage(tabs);
+    keyboardPage_ = new KeyboardPage(tabs);
+    tabs->addTab(scrollPage(agentPage_), titles[4]);
+    tabs->addTab(scrollPage(keyboardPage_), titles[5]);
+    connect(keyboardPage_, &KeyboardPage::macStateChanged, agentPage_, &AgentPage::showMqttState);
+    connect(forget, &QPushButton::clicked, this, [this] {
+        if (QMessageBox::question(this, QStringLiteral("清除保存的连接"),
+                                  QStringLiteral("清除本机保存的 ESP32、Mac、MQTT "
+                                                 "地址和连接口令并断开连接？设备配置不会改变。")) !=
+            QMessageBox::Yes)
+            return;
+        if (flash_.running() || client_.exclusiveBusy() || keyboardPage_->busy()) {
+            QMessageBox::information(
+                this, QStringLiteral("请先完成操作"),
+                QStringLiteral("请等待设备操作结束，或取消键盘后续步骤，再清除连接。"));
+            return;
+        }
+        client_.disconnectDevice();
+        agentPage_->forget();
+        keyboardPage_->forget();
+        token_->clear();
+        address_->setText(QStringLiteral("http://192.168.4.1"));
+        QString error;
+        if (!ConnectionStore::forgetAll(error))
+            QMessageBox::warning(this, QStringLiteral("未完全清除"), error);
+    });
     connect(navigation, &QListWidget::currentRowChanged, tabs, &QTabWidget::setCurrentIndex);
     connect(tabs, &QTabWidget::currentChanged, this,
             [this, navigation, pageTitle, pageSubtitle, titles, subtitles,
@@ -374,10 +405,29 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
                 navigation->setCurrentRow(index);
                 pageTitle->setText(titles[index]);
                 pageSubtitle->setText(subtitles[index]);
-                deviceCard->setVisible(index != 4);
-                notice_->setVisible(index != 4);
+                deviceCard->setVisible(index < 4);
+                notice_->setVisible(index < 4);
             });
     navigation->setCurrentRow(0);
+    const auto saved = ConnectionStore::load(QStringLiteral("device"));
+    address_->setText(
+        saved.fields.value(QStringLiteral("address"), QStringLiteral("http://192.168.4.1"))
+            .toString());
+    token_->setText(saved.secret);
+    transport_->setCurrentIndex(
+        saved.fields.value(QStringLiteral("transport"), 0).toInt() == 1 ? 1 : 0);
+    const auto remember = [this] {
+        QString error;
+        if (!ConnectionStore::save(QStringLiteral("device"),
+                                   {{QStringLiteral("address"), address_->text()},
+                                    {QStringLiteral("transport"), transport_->currentIndex()}},
+                                   token_->text(), error)) {
+            notice_->setText(error);
+            ui::property(notice_, "kind", QStringLiteral("error"));
+        }
+    };
+    connect(address_, &QLineEdit::editingFinished, this, remember);
+    connect(token_, &QLineEdit::editingFinished, this, remember);
     connect(refreshPortsButton, &QPushButton::clicked, this, &MainWindow::refreshPorts);
     connect(transport_, &QComboBox::currentIndexChanged, this, [this] { updateControls(); });
     connect(connect_, &QPushButton::clicked, this, &MainWindow::connectDevice);
@@ -543,6 +593,14 @@ void MainWindow::connectDevice() {
     }
     configLoaded_ = false;
     rebootRequired_ = false;
+    QString saveError;
+    if (!ConnectionStore::save(QStringLiteral("device"),
+                               {{QStringLiteral("address"), address_->text()},
+                                {QStringLiteral("transport"), transport_->currentIndex()}},
+                               token_->text(), saveError)) {
+        notice_->setText(saveError);
+        ui::property(notice_, "kind", QStringLiteral("error"));
+    }
     if (transport_->currentIndex() == 0)
         client_.connectHttp(address_->text(), token_->text());
     else
@@ -598,6 +656,8 @@ void MainWindow::renderStatusDetails() {
     state_->horizontalScrollBar()->setValue(horizontal);
 }
 void MainWindow::success(const QString &method, const QJsonObject &result) {
+    if (method == QStringLiteral("status.get"))
+        keyboardPage_->useDeviceID(result.value(QStringLiteral("device_id")).toString());
     if (method == QStringLiteral("status.get")) {
         if (result.value(QStringLiteral("v")).toInt() != 1 ||
             result.value(QStringLiteral("device_id")).toString().isEmpty()) {
@@ -677,6 +737,12 @@ void MainWindow::success(const QString &method, const QJsonObject &result) {
         if (!pendingAdmin_.isEmpty()) {
             client_.setToken(pendingAdmin_);
             token_->setText(pendingAdmin_);
+            QString error;
+            if (!ConnectionStore::save(QStringLiteral("device"),
+                                       {{QStringLiteral("address"), address_->text()},
+                                        {QStringLiteral("transport"), transport_->currentIndex()}},
+                                       pendingAdmin_, error))
+                QMessageBox::warning(this, QStringLiteral("本机口令未更新"), error);
         }
         pendingAdmin_.clear();
         config_->committed();
@@ -728,6 +794,13 @@ void MainWindow::failure(const QString &method, const QString &message) {
     updateControls();
 }
 void MainWindow::closeEvent(QCloseEvent *event) {
+    if (keyboardPage_->busy()) {
+        QMessageBox::information(
+            this, QStringLiteral("键盘操作进行中"),
+            QStringLiteral("请等待本次操作结束，或在键盘控制页取消后续步骤，再关闭窗口。"));
+        event->ignore();
+        return;
+    }
     if (flash_.running() || client_.exclusiveBusy()) {
         notice_->setText(QStringLiteral("请等待当前设备操作结束后再关闭窗口。"));
         event->ignore();

@@ -97,10 +97,16 @@ QIcon navigationIcon(int index) {
         p.drawLine(10, 6, 10, 14);
         p.drawLine(7, 11, 10, 14);
         p.drawLine(13, 11, 10, 14);
-    } else {
+    } else if (index == 4) {
         p.drawRoundedRect(QRectF(2, 3, 16, 11), 2, 2);
         p.drawLine(10, 14, 10, 18);
         p.drawLine(6, 18, 14, 18);
+    } else {
+        p.drawRoundedRect(QRectF(1, 4, 18, 12), 2, 2);
+        for (int x : {4, 8, 12, 16})
+            for (int y : {7, 10})
+                p.drawPoint(x, y);
+        p.drawLine(6, 13, 14, 13);
     }
     return QIcon(pixmap);
 }
@@ -145,6 +151,8 @@ QPushButton[variant="primary"]:hover { background: #0f8278; border-color: #0f827
 QPushButton[variant="primary"]:pressed { background: #0f766e; }
 QPushButton[variant="danger"] { background: #fff7f8; color: #c14b60; border-color: #f5d8df; }
 QPushButton[variant="danger"]:hover { background: #ffeaf0; border-color: #eeb9c5; }
+QPushButton#forgetConnections { background: transparent; color: #91a8ba; border: 1px solid #2a4056; font-weight: 400; }
+QPushButton#forgetConnections:hover { background: #1a2c40; color: #e2e8f0; }
 QPushButton:disabled, QPushButton[variant="primary"]:disabled, QPushButton[variant="danger"]:disabled { background: #edf2f7; color: #a2afbe; border-color: #e6ecf2; }
 QToolButton { border: none; background: transparent; color: #0f8c80; padding: 6px 0; font-size: 12px; }
 QToolButton:hover { color: #115e59; }

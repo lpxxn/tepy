@@ -11,6 +11,8 @@
 #include <QToolButton>
 
 namespace tepy::desktop {
+class AgentPage;
+class KeyboardPage;
 class MainWindow final : public QMainWindow {
     Q_OBJECT
   public:
@@ -50,5 +52,7 @@ class MainWindow final : public QMainWindow {
     unsigned scanPolls_{};
     bool statusFailed_{};
     QJsonObject latestStatus_;
+    AgentPage *agentPage_;
+    KeyboardPage *keyboardPage_;
 };
 } // namespace tepy::desktop
