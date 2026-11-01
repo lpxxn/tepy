@@ -18,6 +18,9 @@ std::string Management::dispatch(std::string_view method, std::string_view param
     if (!body || !cJSON_IsObject(body.get()))
         return error("invalid_body");
     if (method == "config.patch") {
+        if (!begin_maintenance())
+            return error("busy");
+        Maintenance guard{*this};
         const auto issue = services_.config.patch(params);
         return issue.empty() ? "{\"ok\":true,\"reboot_required\":true}" : error(issue);
     }

@@ -33,3 +33,7 @@ Flutter Mobile 0.1.2 位于 `apps/mobile-flutter`，已实现 Android MQTT 状�
 ### Flutter 0.3.0
 
 已接入 Go 0.2.0 Mac 状态、诊断和事件时间线；操作页显式保存密码到可编辑明文 JSON；固件页支持 Android / Windows 网络 OTA。后续可补实机升级与断电回滚、多平台构建，以及用户有需求时的 USB ROM 刷机。详见 [管理说明](flutter-management.md)。
+
+### Flutter 0.4.0 / 固件 0.3.0
+
+已实现 Android OTG / Windows COM 的 USB 应用升级，共用备用分区、镜像校验与维护锁；支持离线、回执进度和人工重连核对版本。后续补真实手机 OTG / Windows 传输、断电回滚验收，以及有需求时的 ROM 下载恢复。

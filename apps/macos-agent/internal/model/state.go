@@ -27,6 +27,18 @@ type Power struct {
 	LastEventAt int64  `json:"last_event_at"`
 	WakeCount   uint64 `json:"wake_count"`
 }
+
+type NetworkAddress struct {
+	Interface string `json:"interface"`
+	IP        string `json:"ip"`
+	Family    string `json:"family"`
+}
+
+// Network is advisory state, not a route or a promise that an address is reachable.
+type Network struct {
+	Available bool             `json:"available"`
+	Addresses []NetworkAddress `json:"addresses"`
+}
 type State struct {
 	V             int    `json:"v"`
 	AgentID       string `json:"agent_id"`
@@ -45,6 +57,7 @@ type State struct {
 	UserSession Session  `json:"user_session"`
 	HID         HID      `json:"hid"`
 	Power       Power    `json:"power"`
+	Network     Network  `json:"network"`
 	Diagnostics []string `json:"diagnostics"`
 }
 type Store struct {
@@ -59,6 +72,7 @@ func (s *Store) Put(value State) {
 }
 func (s *Store) Get() State { s.mu.RLock(); defer s.mu.RUnlock(); return clone(s.state) }
 func clone(s State) State {
+	s.Network.Addresses = append([]NetworkAddress{}, s.Network.Addresses...)
 	s.HID.Devices = append([]HIDDevice{}, s.HID.Devices...)
 	s.Diagnostics = append([]string{}, s.Diagnostics...)
 	if s.UserSession.OnConsole != nil {

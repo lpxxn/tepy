@@ -84,7 +84,8 @@ void main() {
               'v': 1,
               'device_id': target.deviceId,
               'firmware': '0.2.0',
-              'session': 'a' * 32,
+              'session': '', // MQTT 离线；HTTP 升级使用独立启动会话。
+              'boot_session': 'a' * 32,
               'busy': false,
             }),
           );
@@ -106,7 +107,9 @@ void main() {
         token: target.token,
         deviceId: target.deviceId,
       );
-      expect((await client.status(address))['firmware'], '0.2.0');
+      final status = await client.status(address);
+      expect(status['firmware'], '0.2.0');
+      expect(status['session'], 'a' * 32);
       var progress = 0;
       await client.upload(address, testFirmware(), (sent, total) {
         progress = sent;

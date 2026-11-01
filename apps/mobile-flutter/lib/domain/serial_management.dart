@@ -121,6 +121,10 @@ final class SerialManagement {
       'ble.passkey',
       'ble.clear',
       'reboot',
+      'ota.begin',
+      'ota.write',
+      'ota.finish',
+      'ota.abort',
     }.contains(method)) {
       throw const AppFailure('串口管理不支持该操作。');
     }

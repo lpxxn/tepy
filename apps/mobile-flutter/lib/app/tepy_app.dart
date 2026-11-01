@@ -66,7 +66,10 @@ class _HomeState extends ConsumerState<_Home> with WidgetsBindingObserver {
       unawaited(
         ref.read(sessionProvider.notifier).disconnect(background: true),
       );
-      unawaited(ref.read(usbProvider.notifier).disconnect());
+      // 系统文件选择器会暂时切走 Activity；选择文件时保留 USB，避免无谓重新授权。
+      if (ref.read(firmwareProvider).phase != FirmwarePhase.selecting) {
+        unawaited(ref.read(usbProvider.notifier).disconnect());
+      }
       ref.read(firmwareProvider.notifier).cancel(background: true);
     }
   }
@@ -89,7 +92,7 @@ class _HomeState extends ConsumerState<_Home> with WidgetsBindingObserver {
       ControlsScreen(onConnect: () => _select(5)),
       MacScreen(onConnect: () => _select(5)),
       const UsbScreen(),
-      const FirmwareScreen(),
+      FirmwareScreen(onUsbRequested: () => _select(3)),
       const ConnectionScreen(),
     ],
   );
@@ -310,7 +313,7 @@ class _HomeState extends ConsumerState<_Home> with WidgetsBindingObserver {
             const Padding(
               padding: EdgeInsets.only(left: 10),
               child: Text(
-                'Tepy  0.3.0',
+                'Tepy  0.4.0',
                 style: TextStyle(fontSize: 10, color: Color(0xFF7584A2)),
               ),
             ),

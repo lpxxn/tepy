@@ -7,6 +7,7 @@ import '../../application/session_state.dart';
 import '../../domain/agent_observations.dart';
 import '../../domain/snapshots.dart';
 import '../widgets/common.dart';
+import '../widgets/mac_network_card.dart';
 
 class MacScreen extends ConsumerStatefulWidget {
   const MacScreen({super.key, required this.onConnect});
@@ -119,6 +120,8 @@ class _MacScreenState extends ConsumerState<MacScreen> {
               child: const Text('前往连接设置'),
             ),
         ] else if (_tab == 0) ...[
+          MacNetworkCard(mac: mac),
+          const SizedBox(height: 16),
           ResponsiveColumns(
             first: SectionCard(
               title: '会话与电源',

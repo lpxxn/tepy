@@ -5,12 +5,15 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../application/firmware_controller.dart';
 import '../../application/providers.dart';
+import '../../application/usb_controller.dart';
 import '../../data/firmware_client.dart';
+import '../../domain/serial_firmware.dart';
 import '../widgets/common.dart';
 import '../widgets/secret_text_field.dart';
 
 class FirmwareScreen extends ConsumerStatefulWidget {
-  const FirmwareScreen({super.key});
+  const FirmwareScreen({super.key, required this.onUsbRequested});
+  final VoidCallback onUsbRequested;
   @override
   ConsumerState<FirmwareScreen> createState() => _FirmwareScreenState();
 }
@@ -52,6 +55,8 @@ class _FirmwareScreenState extends ConsumerState<FirmwareScreen> {
     final state = ref.watch(firmwareProvider),
         session = ref.watch(sessionProvider),
         controller = ref.read(firmwareProvider.notifier);
+    final usb = state.transport == FirmwareTransport.usb,
+        usbState = ref.watch(usbProvider);
     final phase = switch (state.phase) {
       FirmwarePhase.reading => '核对设备',
       FirmwarePhase.selecting => '选择镜像',
@@ -78,84 +83,158 @@ class _FirmwareScreenState extends ConsumerState<FirmwareScreen> {
         const PageHeading(
           eyebrow: 'FIRMWARE',
           title: '固件管理',
-          subtitle: '选择应用镜像，通过网络升级 ESP32，再确认设备的运行版本。',
+          subtitle: '选择应用镜像，通过网络或 USB 升级 ESP32，再确认运行版本。',
         ),
-        ResponsiveColumns(
-          first: SectionCard(
-            title: '连接目标设备',
-            icon: Icons.router_outlined,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                field(
-                  _address,
-                  'ESP32 管理地址，例如 http://192.168.50.240',
-                  'otaAddress',
-                ),
-                if (session.device?.ip.isNotEmpty == true)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 14),
-                    child: TextButton.icon(
-                      onPressed: !state.busy
-                          ? () => setState(() {
-                              _address.text = 'http://${session.device!.ip}';
-                              _device.text = session.profile.deviceId;
-                              _dirty = true;
-                            })
-                          : null,
-                      icon: const Icon(Icons.link_rounded, size: 16),
-                      label: const Text('使用当前 ESP32 的地址'),
-                    ),
-                  ),
-                field(_device, 'ESP32 设备 ID', 'otaDevice'),
-                SecretTextField(
-                  inputKey: const Key('otaToken'),
-                  controller: _token,
-                  enabled: !state.busy,
-                  onChanged: (_) => setState(() => _dirty = true),
-                  decoration: const InputDecoration(labelText: 'ESP32 管理口令'),
-                ),
-                CheckboxListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: const Text('记住管理连接', style: TextStyle(fontSize: 13)),
-                  value: _remember,
-                  onChanged: !state.busy
-                      ? (v) => setState(() => _remember = v ?? true)
-                      : null,
-                ),
-                FilledButton.icon(
-                  key: const Key('otaReadStatus'),
-                  onPressed: !state.busy
-                      ? () async {
-                          await controller.readStatus(
-                            _target(),
-                            remember: _remember,
-                          );
-                          if (mounted && !ref.read(firmwareProvider).error) {
-                            setState(() => _dirty = false);
-                          }
-                        }
-                      : null,
-                  icon: const Icon(Icons.refresh_rounded, size: 18),
-                  label: const Text('连接并读取版本'),
-                ),
-                TextButton(
-                  onPressed: !state.busy
-                      ? () async {
-                          await controller.forget();
-                          if (mounted && !ref.read(firmwareProvider).error) {
-                            setState(() {
-                              _token.clear();
-                              _dirty = true;
-                            });
-                          }
-                        }
-                      : null,
-                  child: const Text('清除保存的管理连接'),
-                ),
-              ],
+        SegmentedButton<FirmwareTransport>(
+          segments: const [
+            ButtonSegment(
+              value: FirmwareTransport.network,
+              label: Text('网络 OTA'),
+              icon: Icon(Icons.wifi_rounded, size: 17),
             ),
-          ),
+            ButtonSegment(
+              value: FirmwareTransport.usb,
+              label: Text('USB 升级'),
+              icon: Icon(Icons.usb_rounded, size: 17),
+            ),
+          ],
+          selected: {state.transport},
+          showSelectedIcon: false,
+          onSelectionChanged: state.busy
+              ? null
+              : (value) => controller.selectTransport(value.first),
+        ),
+        const SizedBox(height: 20),
+        ResponsiveColumns(
+          first: usb
+              ? SectionCard(
+                  title: 'USB 连接',
+                  icon: Icons.usb_rounded,
+                  subtitle: '使用已连接的 USB 设备，可离线升级。',
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      DetailRow('串口状态', usbState.connected ? '已连接' : '未连接'),
+                      const SizedBox(height: 12),
+                      field(_device, '目标 ESP32 设备 ID', 'otaDevice'),
+                      FilledButton.icon(
+                        key: const Key('usbOtaReadStatus'),
+                        onPressed:
+                            !state.busy && usbState.connected && !usbState.busy
+                            ? () async {
+                                await controller.readUsbStatus(
+                                  _device.text.trim().toLowerCase(),
+                                );
+                                if (mounted &&
+                                    !ref.read(firmwareProvider).error) {
+                                  setState(() => _dirty = false);
+                                }
+                              }
+                            : null,
+                        icon: const Icon(Icons.refresh_rounded, size: 18),
+                        label: const Text('通过 USB 读取版本'),
+                      ),
+                      TextButton.icon(
+                        onPressed: state.phase == FirmwarePhase.uploading
+                            ? null
+                            : widget.onUsbRequested,
+                        icon: const Icon(Icons.cable_rounded, size: 18),
+                        label: Text(
+                          state.phase == FirmwarePhase.verifying
+                              ? '前往设备页重新连接 USB'
+                              : '前往设备页连接 USB',
+                        ),
+                      ),
+                      const Text(
+                        '使用 ESP32 原生 USB 数据口。首次需用网络 OTA 或 IDF 更新到固件 0.3.0；此后可通过 USB 日常升级，保留配置与绑定。',
+                        style: TextStyle(color: Colors.blueGrey, fontSize: 12),
+                      ),
+                    ],
+                  ),
+                )
+              : SectionCard(
+                  title: '连接目标设备',
+                  icon: Icons.router_outlined,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      field(
+                        _address,
+                        'ESP32 管理地址，例如 http://192.168.50.240',
+                        'otaAddress',
+                      ),
+                      if (session.device?.ip.isNotEmpty == true)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 14),
+                          child: TextButton.icon(
+                            onPressed: !state.busy
+                                ? () => setState(() {
+                                    _address.text =
+                                        'http://${session.device!.ip}';
+                                    _device.text = session.profile.deviceId;
+                                    _dirty = true;
+                                  })
+                                : null,
+                            icon: const Icon(Icons.link_rounded, size: 16),
+                            label: const Text('使用当前 ESP32 的地址'),
+                          ),
+                        ),
+                      field(_device, 'ESP32 设备 ID', 'otaDevice'),
+                      SecretTextField(
+                        inputKey: const Key('otaToken'),
+                        controller: _token,
+                        enabled: !state.busy,
+                        onChanged: (_) => setState(() => _dirty = true),
+                        decoration: const InputDecoration(
+                          labelText: 'ESP32 管理口令',
+                        ),
+                      ),
+                      CheckboxListTile(
+                        contentPadding: EdgeInsets.zero,
+                        title: const Text(
+                          '记住管理连接',
+                          style: TextStyle(fontSize: 13),
+                        ),
+                        value: _remember,
+                        onChanged: !state.busy
+                            ? (v) => setState(() => _remember = v ?? true)
+                            : null,
+                      ),
+                      FilledButton.icon(
+                        key: const Key('otaReadStatus'),
+                        onPressed: !state.busy
+                            ? () async {
+                                await controller.readStatus(
+                                  _target(),
+                                  remember: _remember,
+                                );
+                                if (mounted &&
+                                    !ref.read(firmwareProvider).error) {
+                                  setState(() => _dirty = false);
+                                }
+                              }
+                            : null,
+                        icon: const Icon(Icons.refresh_rounded, size: 18),
+                        label: const Text('连接并读取版本'),
+                      ),
+                      TextButton(
+                        onPressed: !state.busy
+                            ? () async {
+                                await controller.forget();
+                                if (mounted &&
+                                    !ref.read(firmwareProvider).error) {
+                                  setState(() {
+                                    _token.clear();
+                                    _dirty = true;
+                                  });
+                                }
+                              }
+                            : null,
+                        child: const Text('清除保存的管理连接'),
+                      ),
+                    ],
+                  ),
+                ),
           second: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -261,14 +340,18 @@ class _FirmwareScreenState extends ConsumerState<FirmwareScreen> {
                             state.device != null &&
                             state.image != null &&
                             !session.busy &&
-                            !session.preparingInput
+                            !session.preparingInput &&
+                            (!usb ||
+                                (usbState.connected &&
+                                    !usbState.busy &&
+                                    supportsUsbFirmware(state.device)))
                         ? () async {
                             final approved = await showDialog<bool>(
                               context: context,
                               builder: (dialog) => AlertDialog(
                                 title: const Text('上传固件并重启？'),
                                 content: Text(
-                                  '设备：${state.target!.deviceId}\n当前版本：${state.device!['firmware']}\n镜像版本：${state.image!.version}\n\n请保持 ESP32 供电和网络连接。',
+                                  '方式：${usb ? 'USB 数据线' : '网络 OTA'}\n设备：${state.device!['device_id']}\n当前版本：${state.device!['firmware']}\n镜像版本：${state.image!.version}\n\n${usb ? '请保持数据线连接。写入后需在设备页重新连接，以确认运行版本。' : '请保持 ESP32 供电和网络连接。'}',
                                 ),
                                 actions: [
                                   TextButton(
@@ -284,7 +367,15 @@ class _FirmwareScreenState extends ConsumerState<FirmwareScreen> {
                                 ],
                               ),
                             );
-                            if (approved == true) await controller.upgrade();
+                            if (approved == true) {
+                              if (usb) {
+                                await controller.upgradeUsb(
+                                  _device.text.trim().toLowerCase(),
+                                );
+                              } else {
+                                await controller.upgrade();
+                              }
+                            }
                           }
                         : null,
                     icon: const Icon(Icons.upgrade_rounded, size: 19),
@@ -294,6 +385,12 @@ class _FirmwareScreenState extends ConsumerState<FirmwareScreen> {
                     OutlinedButton(
                       onPressed: controller.cancel,
                       child: const Text('停止等待'),
+                    ),
+                  if (usb && state.phase == FirmwarePhase.verifying)
+                    TextButton.icon(
+                      onPressed: widget.onUsbRequested,
+                      icon: const Icon(Icons.cable_rounded, size: 18),
+                      label: const Text('重新连接 USB 核对版本'),
                     ),
                 ],
               ),

@@ -487,6 +487,89 @@ void main() {
       await tester.pump();
     },
   );
+  testWidgets(
+    'Mac IP refreshes, copies, wraps on small screens and clears offline',
+    (tester) async {
+      final app = await mount(tester);
+      app.broker.heartbeat = false;
+      await app.container.read(sessionProvider.notifier).connect(testProfile);
+      final clock = app.container.read(clockProvider);
+      Map<String, dynamic> sample(int sequence, String ip) =>
+          macJson(clock, sequence: sequence)
+            ..['network'] = {
+              'available': true,
+              'addresses': [
+                {'interface': 'en0', 'ip': ip, 'family': 'ipv4'},
+                {
+                  'interface': 'en0',
+                  'ip': '2001:db8:1234:5678:abcd:1234:5678:abcd',
+                  'family': 'ipv6',
+                },
+              ],
+            };
+      app.broker.message(
+        '${testProfile.agentPrefix}/state',
+        sample(100, '192.168.50.90'),
+      );
+      await tester.pumpAndSettle();
+      expect(
+        app.container.read(sessionProvider).mac?.network?.addresses.first.ip,
+        '192.168.50.90',
+      );
+      await tester.scrollUntilVisible(
+        find.text('Mac IP 地址'),
+        200,
+        scrollable: find
+            .descendant(
+              of: find.byKey(const PageStorageKey('dashboard')),
+              matching: find.byType(Scrollable),
+            )
+            .first,
+      );
+      expect(find.text('192.168.50.90'), findsOneWidget);
+      String? copied;
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        (call) async {
+          if (call.method == 'Clipboard.setData') {
+            copied = (call.arguments as Map)['text'] as String;
+          }
+          return null;
+        },
+      );
+      addTearDown(
+        () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          SystemChannels.platform,
+          null,
+        ),
+      );
+      await tester.ensureVisible(find.byTooltip('复制 IP 地址').first);
+      await tester.tap(find.byTooltip('复制 IP 地址').first);
+      await tester.pumpAndSettle();
+      expect(copied, '192.168.50.90');
+      await tester.tap(find.byKey(const ValueKey('nav-Mac')));
+      await tester.pumpAndSettle();
+      tester.view.physicalSize = const Size(320, 844);
+      await tester.pumpAndSettle();
+      expect(find.text('192.168.50.90'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+      await preview(tester, 'mac-ip-phone');
+      app.broker.message(
+        '${testProfile.agentPrefix}/state',
+        sample(101, '192.168.50.246'),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('192.168.50.246'), findsOneWidget);
+      expect(find.text('192.168.50.90'), findsNothing);
+      await app.container.read(sessionProvider.notifier).disconnect();
+      await tester.pumpAndSettle();
+      expect(find.text('192.168.50.246'), findsNothing);
+      expect(app.broker.sent, isEmpty);
+      await tester.pumpWidget(const SizedBox.shrink());
+      app.dispose();
+      await tester.pump();
+    },
+  );
   testWidgets('Mac diagnostics and timeline render valid same-session data', (
     tester,
   ) async {
@@ -616,4 +699,82 @@ void main() {
     app.dispose();
     await tester.pump();
   });
+  testWidgets(
+    'USB firmware UI uses existing connection and reviews before writing',
+    (tester) async {
+      final app = await mount(tester, width: 390, height: 844);
+      app.usb.statusOverride = {
+        'v': 1,
+        'device_id': 'aabbccddeeff',
+        'firmware': '0.3.0',
+        'session': '',
+        'boot_session': 'd' * 32,
+        'busy': false,
+        'usb_ota': {'v': 1, 'max_chunk_bytes': 3072},
+      };
+      await app.container
+          .read(usbProvider.notifier)
+          .connect('1:0', 'ExampleAdminTokenOnly0000');
+      (app.container.read(firmwarePickerProvider) as FakeFirmwarePicker).image =
+          testFirmware();
+      await tester.tap(find.byKey(const ValueKey('nav-固件')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('USB 升级'));
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.byKey(const Key('otaDevice')),
+        'aabbccddeeff',
+      );
+      await tester.ensureVisible(find.byKey(const Key('usbOtaReadStatus')));
+      await tester.tap(find.byKey(const Key('usbOtaReadStatus')));
+      await tester.pumpAndSettle();
+      expect(app.container.read(firmwareProvider).device?['firmware'], '0.3.0');
+      final scroll = find
+          .descendant(
+            of: find.byKey(const PageStorageKey('firmware')),
+            matching: find.byType(Scrollable),
+          )
+          .first;
+      await tester.scrollUntilVisible(
+        find.byKey(const Key('otaPickImage')),
+        200,
+        scrollable: scroll,
+      );
+      await tester.tap(find.byKey(const Key('otaPickImage')));
+      await tester.pumpAndSettle();
+      await tester.scrollUntilVisible(
+        find.byKey(const Key('otaUpgrade')),
+        200,
+        scrollable: scroll,
+      );
+      await tester.ensureVisible(find.byKey(const Key('otaUpgrade')));
+      await tester.drag(scroll, const Offset(0, -220));
+      await tester.pumpAndSettle();
+      expect(
+        tester
+            .widget<FilledButton>(find.byKey(const Key('otaUpgrade')))
+            .onPressed,
+        isNotNull,
+      );
+      await tester.tap(find.byKey(const Key('otaUpgrade')));
+      await tester.pumpAndSettle();
+      expect(find.textContaining('方式：USB 数据线'), findsOneWidget);
+      await preview(tester, 'usb-firmware-confirm');
+      await tester.tap(find.text('取消').last);
+      await tester.pumpAndSettle();
+      expect(
+        app.usb.sent.any((f) => (f['method'] as String).startsWith('ota.')),
+        false,
+      );
+      tester.view.physicalSize = const Size(320, 844);
+      await tester.pumpAndSettle();
+      await tester.drag(scroll, const Offset(0, 1500));
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+      await preview(tester, 'usb-firmware-phone');
+      await tester.pumpWidget(const SizedBox.shrink());
+      app.dispose();
+      await tester.pump();
+    },
+  );
 }

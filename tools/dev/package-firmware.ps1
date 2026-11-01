@@ -40,7 +40,8 @@ $utf8 = [Text.UTF8Encoding]::new($false)
 $readme = @"
 Tepy firmware $version / ESP32-S3-WROOM-1-N16R8 / ESP-IDF 6.1
 
-OTA：在网页或 Qt 中上传 tepy.bin。
+网络 OTA：在 Flutter、网页或 Qt 中上传 tepy.bin。
+USB 应用升级：设备已运行 0.3.0+ 后，可在 Flutter 中通过 USB 升级 tepy.bin，保留配置和绑定。
 USB 保留配置刷机：在 Qt 中选择 flasher_args.json，保留本目录结构。
 tepy-merged.bin 仅用于首次安装；连续写入合并镜像会覆盖空隙中的原配置。
 SHA256SUMS 用于文件校验。源码和恢复方法见仓库 docs/ota.md。

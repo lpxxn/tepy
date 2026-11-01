@@ -8,6 +8,7 @@ import '../../application/session_state.dart';
 import '../../app/app_theme.dart';
 import '../../domain/snapshots.dart';
 import '../widgets/common.dart';
+import '../widgets/mac_network_card.dart';
 
 class DashboardScreen extends ConsumerWidget {
   const DashboardScreen({super.key, required this.onConnect, this.onControls});
@@ -254,6 +255,8 @@ class DashboardScreen extends ConsumerWidget {
         ),
         const SizedBox(height: 18),
         const SessionNotice(),
+        const SizedBox(height: 18),
+        MacNetworkCard(mac: mac),
         const SizedBox(height: 24),
         ResponsiveColumns(
           first: SectionCard(

@@ -1,6 +1,6 @@
 # Flutter Mac 诊断、密码与固件管理
 
-适用 Tepy Flutter **0.3.0+7**，Android 与 Windows 共用功能。导航为“状态 / 操作 / Mac / 设备 / 固件 / 连接”。
+适用 Tepy Flutter **0.4.0+9**，Android 与 Windows 共用功能。导航为“状态 / 操作 / Mac / 设备 / 固件 / 连接”。
 
 ## Mac 状态与诊断
 
@@ -72,3 +72,14 @@ OTA 不依赖 Mac Agent 在线，但升级期间暂停本应用键盘和 USB 管
 | 网络 OTA | `domain/firmware_image.dart`、`data/firmware_client.dart` | `application/firmware_controller.dart`、`presentation/screens/firmware_screen.dart` |
 
 对应测试为 `observations_test.dart`、`mac_password_test.dart`、`firmware_test.dart` 与界面 / MQTT 线协议测试。HTTP 测试使用本机测试服务，不升级真实设备；原生存储集成检查使用随机测试目录，不接触用户密码文件。
+
+
+## 0.3.1：查看 Mac IP
+
+需将 Mac Agent 更新到 **0.2.1+**。连接原有 MQTT Broker 后，“状态”页和“Mac → 状态”均显示 **Mac IP 地址** 卡片，逐项标注网卡（如 en0）、IPv4 / IPv6，可选择文字或点击复制。切换 Wi-Fi 或 DHCP 地址改变后，随下一次 Agent 采样和心跳更新，无需手动维护 Mac IP。
+
+多网卡 / VPN 会分别展示，未将第一项称为默认路由；回环与链路本地地址不展示。旧 Agent 提示尚未上报，采样失败显示不可用，断线或状态过期后清除旧地址。连接和解锁仍使用原来的 Agent ID 与 MQTT，不依赖这里的 IP。
+
+## 0.4.0：USB 通道
+
+固件页新增 USB 升级，与网络 OTA 共用镜像选择和校验。先在设备页连接 USB；上传后人工重新连接，由应用核对新启动会话和运行版本。支持固件 0.3.0+，不依赖 Wi-Fi 或 MQTT。首次更新和恢复说明见 [USB 固件升级](flutter-usb-ota.md)。

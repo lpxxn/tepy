@@ -221,17 +221,18 @@ final class HttpFirmwareClient implements FirmwareClient {
       final result = await _response(
         await request.close().timeout(const Duration(seconds: 6)),
       );
+      final bootSession = result['boot_session'] ?? result['session'];
       if (result['v'] != 1 ||
           result['device_id'] != target.deviceId ||
           result['firmware'] is! String ||
           (result['firmware'] as String).length > 64 ||
           (result['firmware'] as String).isEmpty ||
-          result['session'] is! String ||
-          !RegExp(r'^[a-f0-9]{32}$').hasMatch(result['session'] as String) ||
+          bootSession is! String ||
+          !RegExp(r'^[a-f0-9]{32}$').hasMatch(bootSession) ||
           result['busy'] is! bool) {
         throw const AppFailure('设备身份或状态无效，请确认连接的是目标 ESP32。');
       }
-      return result;
+      return {...result, 'session': bootSession};
     } on AppFailure {
       rethrow;
     } catch (_) {

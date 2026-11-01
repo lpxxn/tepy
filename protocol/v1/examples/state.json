@@ -4,7 +4,7 @@
   "session": "0123456789abcdef0123456789abcdef",
   "online": true,
   "time_ready": true,
-  "firmware": "0.2.0",
+  "firmware": "0.3.0",
   "now": 1899999990000,
   "busy": false,
   "wifi": {
@@ -28,8 +28,20 @@
     "protocol_mode": "report",
     "report_subscribed": true,
     "boot_subscribed": false,
-    "host_reads": ["information", "report_map", "input_reference", "output_reference", "pnp", "model"],
+    "host_reads": [
+      "information",
+      "report_map",
+      "input_reference",
+      "output_reference",
+      "pnp",
+      "model"
+    ],
     "tx_completed": 0,
     "tx_errors": 0
+  },
+  "boot_session": "dddddddddddddddddddddddddddddddd",
+  "usb_ota": {
+    "v": 1,
+    "max_chunk_bytes": 3072
   }
 }

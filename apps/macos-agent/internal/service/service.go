@@ -9,6 +9,7 @@ import (
 	"github.com/lpxxn/tepy/apps/macos-agent/internal/config"
 	"github.com/lpxxn/tepy/apps/macos-agent/internal/diagnostics"
 	"github.com/lpxxn/tepy/apps/macos-agent/internal/model"
+	"github.com/lpxxn/tepy/apps/macos-agent/internal/network"
 	"github.com/lpxxn/tepy/apps/macos-agent/internal/platform"
 )
 
@@ -18,13 +19,15 @@ type Publisher interface {
 	Notify()
 }
 type Service struct {
-	Config      config.Config
-	Journal     *model.Journal
-	Store       model.Store
-	Probe       platform.Probe
-	Publisher   Publisher
-	Instance    string
-	Version     string
+	Config    config.Config
+	Journal   *model.Journal
+	Store     model.Store
+	Probe     platform.Probe
+	Publisher Publisher
+	Instance  string
+	Version   string
+	// Optional override keeps address-change tests deterministic without changing Probe.
+	Network     func() model.Network
 	started     time.Time
 	sampleMu    sync.Mutex
 	mu          sync.Mutex
@@ -85,6 +88,11 @@ func (s *Service) Sample() {
 		Diagnostics: append([]string{}, sample.Diagnostics...)}
 	state.MQTT.Configured = s.Config.MQTT.URL != ""
 	state.MQTT.Connected = s.Publisher != nil && s.Publisher.Connected()
+	if s.Network != nil {
+		state.Network = s.Network()
+	} else {
+		state.Network = network.Sample()
+	}
 	s.mu.Lock()
 	state.Power = s.power
 	if state.UserSession.OnConsole == nil || !*state.UserSession.OnConsole || state.UserSession.LoginDone == nil || !*state.UserSession.LoginDone {

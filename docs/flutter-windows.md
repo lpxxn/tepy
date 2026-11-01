@@ -4,7 +4,7 @@
 
 ## 运行与连接
 
-将 `tepy-flutter-0.3.0-windows-x64.zip` 解压到独立目录，再运行 `tepy.exe`。保留旁边的 DLL 和 `data/`，不要单独移动 exe。无需安装 Flutter、Qt、Go 或 ESP-IDF；便携包附带应用所需的 x64 CRT。当前为本地开发版本，尚未进行发行签名。
+将 `tepy-flutter-0.4.0-windows-x64.zip` 解压到独立目录，再运行 `tepy.exe`。保留旁边的 DLL 和 `data/`，不要单独移动 exe。无需安装 Flutter、Qt、Go 或 ESP-IDF；便携包附带应用所需的 x64 CRT。当前为本地开发版本，尚未进行发行签名。
 
 在“连接”页填写 Broker、ESP32 ID 和 Mac 代理 ID。Broker 就在这台 Windows 电脑上时使用 `mqtt://127.0.0.1:1883`；连接其他电脑或服务器则填其可达地址。手机和 ESP32 仍使用局域网 / 远程地址，不能把自己的 localhost 当作 Windows 的地址。
 
@@ -42,7 +42,7 @@ flutter build windows --release --target lib/main.dart
 
 脚本执行格式 / 静态检查、Dart 测试、Release 构建，复制完整 bundle、匹配的本地 x64 CRT、文档 / 协议 / 源码并生成 Hash 和 ZIP。构建前关闭同目录运行的旧程序，避免 exe / DLL 被占用。代理可通过 `-Proxy http://host:port` 仅作用于当前进程。
 
-Windows Release 输出为 `build/windows/x64/runner/Release/tepy.exe`，发布目录为 `dist/flutter-windows/0.3.0/`。Android 构建仍使用 `tools/dev/mobile.ps1`，两者独立。
+Windows Release 输出为 `build/windows/x64/runner/Release/tepy.exe`，发布目录为 `dist/flutter-windows/0.4.0/`。Android 构建仍使用 `tools/dev/mobile.ps1`，两者独立。
 
 Android / Windows 共用 `pubspec.yaml` 的版本。发布脚本只取 `+` 前的版本生成目录和 ZIP 名称；只增加构建号仍写入同一目录。完整的版本维护、覆盖行为和各项目发布路径见 [构建、发布目录与版本号](releases.md)。
 
@@ -62,3 +62,7 @@ USB 检查发送无效测试口令，只期望 `unauthorized` 回执，验证串
 ## 0.3.0 Mac、密码与 OTA
 
 新增“Mac”页接入 Agent 0.2.0 的状态、诊断和最近事件；操作页支持本机明文 JSON 保存登录密码；固件页支持系统文件选择器与网络 OTA。使用步骤及文件格式见 [管理功能](flutter-management.md)。Android / Windows 数据各自独立，不在发布目录保存用户密码。
+
+## 0.4.0 USB 升级
+
+在设备页使用 COM 连接后，固件页选择 USB 升级即可离线写入 tepy.bin。复用管理口令，保留 NVS / 蓝牙绑定；首次需固件 0.3.0+。重启后刷新并重新连接端口，由应用核对启动会话和实际版本。参见 [完整步骤](flutter-usb-ota.md)。

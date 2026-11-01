@@ -1,4 +1,4 @@
-# Tepy Flutter 0.3.0
+# Tepy Flutter 0.4.0
 
 Flutter / Dart / Riverpod 编写的 Android / Windows 控制台。通过 MQTT 查看 Mac、ESP32 与 BLE 状态，发送唤醒、文字、组合键或单次解锁；通过 Android USB OTG 或 Windows COM 串口配置 ESP32。复用根目录 `protocol/v1`，不依赖 Qt、Go 或 ESP-IDF 构建系统。
 
@@ -71,3 +71,11 @@ Windows 需要 Visual Studio 2022 C++ 桌面工具链、Windows SDK 和 C++ ATL�
 ## 0.3.0 管理功能
 
 Mac 状态 / 诊断 / 最近事件、明文 JSON 保存登录密码、Android / Windows 网络 OTA 已实现。使用步骤、JSON 格式和操作边界见 [Flutter 管理](../../docs/flutter-management.md)。新增 file_selector、path_provider 和 crypto，版本锁定于 pubspec.lock；Mac 密码不依赖系统安全存储，Broker 与 ESP32 管理连接保持原存储方式。
+
+## 0.3.1 Mac IP
+
+状态页和 Mac 页展示 Agent 0.2.1+ 上报的多网卡 IPv4 / IPv6，可复制，DHCP 变化随状态更新。旧 Agent 和异常附加字段不会影响键盘条件判断。模型位于 `lib/domain/mac_network.dart`，共享界面为 `presentation/widgets/mac_network_card.dart`。
+
+## 0.4.0 USB 固件更新
+
+固件页可选择网络 OTA 或 USB。USB 复用设备页鉴权串口，支持离线分块更新、设备回执进度、取消和人工重连后版本确认。需要固件 0.3.0+；首次更新及中断处理见 [USB 升级](../../docs/flutter-usb-ota.md)。

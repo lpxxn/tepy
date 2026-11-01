@@ -1,6 +1,6 @@
 # macOS Go 状态服务
 
-服务版本 **0.2.0**，配合 Qt Desktop **0.2.0 及以上**。目标环境为 Apple Silicon / macOS 27；以当前登录用户的 LaunchAgent 运行。提供 MQTT 状态、睡眠／唤醒观察、用户会话、Tepy HID 诊断及事件时间线，不接收远程执行、密码输入或解锁命令。
+服务版本 **0.2.1**，配合 Qt Desktop **0.2.0 及以上**。目标环境为 Apple Silicon / macOS 27；以当前登录用户的 LaunchAgent 运行。提供 MQTT 状态、睡眠／唤醒观察、用户会话、Tepy HID 诊断及事件时间线，不接收远程执行、密码输入或解锁命令。
 
 ## 当前部署与连接
 
@@ -280,3 +280,8 @@ MQTT 新主题：
 更新前保留旧程序备份，更新后连续 20 次检查服务版本、MQTT、诊断和事件分页；原状态及 mqtt 子对象的字段集合与 0.1.0 一致，配置文件校验值保持一致。用户手动解锁 / 锁屏后，已观察到 screen_unlocked、screen_locked 以及 did_wake；未自动输入或读取登录密码。
 
 通过当前 Broker 的独立只读客户端收到 state / availability / diagnostics / events，真实消息符合三份 Schema。手机 / Qt 的诊断页面接入、完整深度睡眠恢复和生产 TLS / mTLS Broker 仍留待后续；本轮 TLS 自动测试使用本地测试证书。
+
+
+## 0.2.1：网卡与 IP 状态
+
+后台采样增加 network，包含已启用网卡的 IPv4 / IPv6 地址与网卡名；HTTP status 和 MQTT state 共用同一快照。无额外外部网络请求或权限要求，地址变化随下一次普通采样更新。最多 32 个地址，排除回环 / 链路本地地址，VPN 地址明确保留网卡标签。Flutter 0.3.1 在状态与 Mac 页显示并支持复制。配置格式不变，升级保留 TOML。

@@ -252,6 +252,7 @@ final class FakeUsb implements UsbTransport {
   final _events = StreamController<UsbEvent>.broadcast(sync: true);
   final sent = <Map<String, dynamic>>[];
   bool autoReply = true;
+  Map<String, dynamic>? statusOverride;
   Future<void>? secretReplyGate;
   @override
   Stream<UsbEvent> get events => _events.stream;
@@ -281,7 +282,9 @@ final class FakeUsb implements UsbTransport {
               'mqtt': {'password': ''},
               'admin_password': 'ExampleAdminTokenOnly0000',
             },
-            _ => {'v': 1, 'device_id': 'aabbccddeeff', 'firmware': '0.2.0'},
+            _ =>
+              statusOverride ??
+                  {'v': 1, 'device_id': 'aabbccddeeff', 'firmware': '0.2.0'},
           },
         }),
       );

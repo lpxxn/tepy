@@ -30,7 +30,7 @@ import (
 	"github.com/lpxxn/tepy/apps/macos-agent/internal/service"
 )
 
-var version = "0.2.0"
+var version = "0.2.1"
 
 func init() { runtime.LockOSThread() }
 

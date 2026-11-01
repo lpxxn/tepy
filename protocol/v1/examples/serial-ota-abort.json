@@ -1,0 +1,9 @@
+{
+  "v": 1,
+  "id": "example-usb-abort",
+  "method": "ota.abort",
+  "token": "ExampleAdminTokenOnly0000",
+  "params": {
+    "upload_id": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+  }
+}

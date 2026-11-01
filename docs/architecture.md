@@ -73,3 +73,7 @@ Flutter Mobile 0.1.0 采用 domain / data / application / presentation 分层。
 同一 Dart / Riverpod 应用提供 Android / Windows 六页导航。Mac 观察模型独立于键盘动作，诊断 / 历史按 Agent session 绑定；可选 MQTT 主题订阅失败不影响既有控制连接。明文 Mac 登录密码通过 MacPasswordStore 接口独立落盘，页面状态只保留元数据，执行时读取对应 Broker + Mac + ESP32 的条目。
 
 OTA 分为 FirmwareImage 镜像验证、FirmwarePicker 文件选择、FirmwareClient HTTP 传输和 FirmwareController 生命周期编排。升级使用独立 HTTP 通道、共享 maintenance 互斥，核对新会话与实际版本后确认。取消后迟到结果通过 epoch 失效；上传不自动重试。使用与学习说明见 [Flutter 管理](flutter-management.md)。
+
+### USB OTA
+
+FirmwareController 共用镜像模型，USB 使用 UsbController 当前 SerialManagement 鉴权连接与身份化维护租约。SerialFirmware 停等发送 Base64 块并核对偏移；进度以回执为准。固件 Upload 事务规则可独立主机测试，OtaUpdater 提供共享的流式写入 / 哈希 / 激活后端。启动 session 独立于 MQTT 会话，支持完全离线更新和可信重启确认。

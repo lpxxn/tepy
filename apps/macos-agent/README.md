@@ -1,4 +1,4 @@
-# Tepy macOS Agent 0.2.0
+# Tepy macOS Agent 0.2.1
 
 Go / CGo / CoreGraphics / IOKit 状态服务，提供 MQTT 心跳、睡眠／唤醒事件、锁定／会话反馈、Tepy HID 诊断、故障诊断、最近事件和带 Bearer 口令的只读 HTTP 接口。现有 Qt / Flutter 状态与键盘流程兼容；诊断和时间线的图形界面留待下一轮接入。
 
@@ -38,3 +38,7 @@ TOML 中默认 Broker 为 `mqtt://192.168.50.99:1883`，支持用户名／密码
 事件包括启动、有效锁定状态、睡眠 / 唤醒、控制台切换、HID 与 MQTT 变化、电源监听异常。心跳不产生事件，相同网络错误不重复填满历史。重启清空并更换 session；增量读取必须带 session，过旧游标返回 truncated，旧进程游标返回 409。没有磁盘历史、口令、输入或任意异常文本。
 
 协议与分页示例见 [macOS Go 服务](../../docs/macos-agent.md) 及根目录 `protocol/v1/schemas/agent-{diagnostics,events}.schema.json`。配置仍为 version=1；本轮没有实现配置重载、远程执行或 GUI。
+
+## 0.2.1 网卡地址
+
+新增 `internal/network`，经原有状态上报已启用网卡的 IPv4 / IPv6 与名称，随采样更新。保留旧字段，增加可选 network；不改配置，不提供新的控制命令。Flutter 0.3.1 支持显示和复制。

@@ -1,5 +1,7 @@
-/// 本文件不依赖 Flutter：JSON 校验和状态有效性可以独立做单元测试。
-/// “蓝牙连着”“HID 发送成功”“Mac 报告解锁”是三种不同证据，不能混为一个 bool。
+// 本文件不依赖 Flutter：JSON 校验和状态有效性可以独立做单元测试。
+// “蓝牙连着”“HID 发送成功”“Mac 报告解锁”是三种不同证据，不能混为一个 bool。
+import 'mac_network.dart';
+
 enum LockState { locked, unlocked, unknown }
 
 /// 可注入的时钟使超时测试不必真的等几十秒。
@@ -85,6 +87,7 @@ final class MacSnapshot {
   const MacSnapshot({
     required this.name,
     this.agentVersion = '未知',
+    this.network,
     required this.session,
     required this.sequence,
     required this.observedAt,
@@ -104,6 +107,7 @@ final class MacSnapshot {
     required this.wakeCount,
   });
   final String agentVersion;
+  final MacNetwork? network;
   final String name,
       session,
       lockSource,
@@ -202,6 +206,7 @@ final class MacSnapshot {
     }
     final result = MacSnapshot(
       name: json['name'] as String,
+      network: MacNetwork.parse(json['network']),
       agentVersion: json['agent_version'] is String
           ? json['agent_version'] as String
           : '未知',

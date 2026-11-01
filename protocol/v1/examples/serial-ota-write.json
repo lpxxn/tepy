@@ -1,0 +1,11 @@
+{
+  "v": 1,
+  "id": "example-usb-write",
+  "method": "ota.write",
+  "token": "ExampleAdminTokenOnly0000",
+  "params": {
+    "upload_id": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "offset": 0,
+    "data": "AQID"
+  }
+}

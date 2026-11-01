@@ -324,13 +324,13 @@ class _ConnectionScreenState extends ConsumerState<ConnectionScreen> {
           onPressed: () => showLicensePage(
             context: context,
             applicationName: 'Tepy',
-            applicationVersion: '0.3.0',
+            applicationVersion: '0.4.0',
           ),
           child: const Text('开源许可'),
         ),
         const SizedBox(height: 8),
         const Text(
-          'Tepy 0.3.0 · Android & Windows',
+          'Tepy 0.4.0 · Android & Windows',
           textAlign: TextAlign.center,
           style: TextStyle(fontSize: 11, color: Colors.blueGrey),
         ),

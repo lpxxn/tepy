@@ -13,12 +13,13 @@ final class FirmwareImage {
   final String name, version, digest;
   final Uint8List _bytes;
   int get length => _bytes.length;
-  Stream<List<int>> chunks() async* {
-    for (var start = 0; start < _bytes.length; start += 16384) {
+  Stream<List<int>> chunks({int size = 16384}) async* {
+    if (size < 1 || size > 16384) throw ArgumentError.value(size, 'size');
+    for (var start = 0; start < _bytes.length; start += size) {
       yield Uint8List.sublistView(
         _bytes,
         start,
-        (start + 16384).clamp(0, _bytes.length),
+        (start + size).clamp(0, _bytes.length),
       );
     }
   }

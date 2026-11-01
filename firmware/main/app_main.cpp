@@ -48,7 +48,7 @@ class Application {
         : management_({config_, ble_, network_, [this] { return status(); },
                        [this] { return maintenance(); }, [this] { busy_ = false; },
                        [this] { reboot_at_ = esp_timer_get_time() + 1000000; }}),
-          web_(management_, ota_), serial_(management_) {}
+          web_(management_, ota_), serial_(management_, ota_) {}
     esp_err_t start() {
         bool created = false;
         auto error = config_.init(created);
@@ -63,6 +63,7 @@ class Application {
         snprintf(id, sizeof(id), "%02x%02x%02x%02x%02x%02x", mac[0], mac[1], mac[2], mac[3], mac[4],
                  mac[5]);
         id_ = id;
+        boot_session_ = random_hex(16);
         if (created)
             print_recovery();
         error = ble_.init("Tepy-" + id_.substr(6));
@@ -123,10 +124,14 @@ class Application {
         cJSON_AddStringToObject(root.get(), "firmware", esp_app_get_description()->version);
         auto session = mqtt_.session();
         cJSON_AddStringToObject(root.get(), "session", session.c_str());
+        cJSON_AddStringToObject(root.get(), "boot_session", boot_session_.c_str());
         cJSON_AddBoolToObject(root.get(), "online", mqtt_.connected());
         cJSON_AddBoolToObject(root.get(), "time_ready", network_.time_ready());
         cJSON_AddNumberToObject(root.get(), "now", unix_ms());
         cJSON_AddBoolToObject(root.get(), "busy", busy_.load());
+        auto *usb_ota = cJSON_AddObjectToObject(root.get(), "usb_ota");
+        cJSON_AddNumberToObject(usb_ota, "v", 1);
+        cJSON_AddNumberToObject(usb_ota, "max_chunk_bytes", 3072);
         auto *wifi = cJSON_AddObjectToObject(root.get(), "wifi");
         cJSON_AddBoolToObject(wifi, "connected", network_.connected());
         cJSON_AddBoolToObject(wifi, "hotspot", network_.hotspot());
@@ -263,7 +268,7 @@ class Application {
     Management management_;
     WebServer web_;
     SerialServer serial_;
-    std::string id_, dedup_session_;
+    std::string id_, dedup_session_, boot_session_;
     QueueHandle_t queue_{};
     std::mutex gate_;
     Deduplicator dedup_;

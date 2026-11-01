@@ -1,6 +1,6 @@
 # Android 手机控制台
 
-Tepy Flutter 0.3.0 位于 `apps/mobile-flutter`。当前提供 arm64 APK，适用于 Android 7.0（API 24）以上；本轮目标手机为 OPPO Find X9 / PLJ110 / Android 17。日常应用 ID 为 `com.tepy.tepy_mobile`，与 Qt、Go、ESP32 的配置独立。
+Tepy Flutter 0.4.0 位于 `apps/mobile-flutter`。当前提供 arm64 APK，适用于 Android 7.0（API 24）以上；本轮目标手机为 OPPO Find X9 / PLJ110 / Android 17。日常应用 ID 为 `com.tepy.tepy_mobile`，与 Qt、Go、ESP32 的配置独立。
 
 0.1.1 修复 MQTT 连接成功与异步事件的时序竞态。旧版可能在已经连接后继续每秒重连，导致状态在在线／未知之间切换、按钮禁用，以及唤醒后的输入步骤被取消。升级保留已保存连接。Debug / 真机集成测试使用独立的 `com.tepy.tepy_mobile.debug`（“Tepy 测试”），测试清理不影响日常应用。
 
@@ -18,7 +18,7 @@ Tepy Flutter 0.3.0 位于 `apps/mobile-flutter`。当前提供 arm64 APK，适�
 
 ```powershell
 adb devices
-adb -s <手机序列号> install -r dist/mobile-flutter/0.3.0/tepy-mobile-0.3.0-arm64.apk
+adb -s <手机序列号> install -r dist/mobile-flutter/0.4.0/tepy-mobile-0.4.0-arm64.apk
 
 adb -s 手机设备ID install -r .\build\app\outputs\flutter-apk\app-release.apk
 ```
@@ -98,3 +98,7 @@ flutter drive -d <手机序列号> --driver test_driver/integration_test.dart --
 集成测试构建的是测试入口，日常安装使用 `lib/main.dart`。Debug / Release 切换时让 Flutter 重新生成插件注册文件，不加 `--no-pub`。Find X9 的原生安全存储、四页导航、USB 枚举及真实 Broker / Mac 状态只读订阅已通过；0.1.1 的手机真实解锁和状态稳定已由用户确认。手机至 ESP32 的实际 OTG 读写、完整 ASCII／组合键及远程 TLS/mTLS Broker 仍需专项实机验收。
 
 设备页在“保留原值”时也展示已保存密码的掩码，点击眼睛后通过 USB `config.secrets.get` 读取原文；需要更新到支持该接口的设备固件。查看不改变密码操作选项，不持久保存读取到的设备密码。已保存的管理口令和 Broker 密码连接后仍可查看，编辑保持锁定。
+
+## 0.4.0 USB 固件升级
+
+Android OTG 与 Windows COM 共用 USB 应用升级流程。先在设备页连接，固件页选择 USB 升级；设备首次需安装 0.3.0+ 固件。实际操作与协议见 [USB 升级说明](flutter-usb-ota.md)。本轮按用户偏好只交付 APK，不自动安装或升级设备。

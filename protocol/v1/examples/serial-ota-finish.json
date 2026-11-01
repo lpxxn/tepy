@@ -1,0 +1,9 @@
+{
+  "v": 1,
+  "id": "example-usb-finish",
+  "method": "ota.finish",
+  "token": "ExampleAdminTokenOnly0000",
+  "params": {
+    "upload_id": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+  }
+}

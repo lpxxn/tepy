@@ -133,3 +133,12 @@ timeout 只让等待者收到异常，原 Future 仍可能完成。OTA 超时或
 ### 如何测试这些边界
 
 `mac_password_test.dart` 用真实临时 JSON 测试手工编辑、错误版本、目标隔离与原文件保留；可控 Future 验证读取中取消不发送。`firmware_test.dart` 用真实本机 HTTP 服务验证 Bearer、Content-Length、原始 bin、禁止重定向；假的重启状态测试会话变化、版本不符、取消与不自动重传。`observations_test.dart` 验证消息顺序、过期和不同会话。原生集成场景另外验证 path_provider 的实际目录和文件替换，不使用用户密码。
+
+
+## 0.3.1：给快照增加可选字段
+
+`MacNetwork.parse` 解析 Agent 的 network，使用 `InternetAddress.tryParse` 校验数字 IP，不通过主机名查询补值。`MacSnapshot.network` 可空，所以旧 Agent 保持兼容；附加字段错误不让整份键盘状态失效。`MacNetworkCard` 在两个页面复用，根据当前快照显示可选择地址与复制按钮。IP 跟随快照失效，页面不另外缓存地址。测试覆盖 DHCP 更新、旧 Agent、非法地址、复制、窄屏 IPv6 换行和断线清理。
+
+## 0.4.0：复用 USB 和异步维护租约
+
+`serial_firmware.dart` 展示如何在现有请求 / 回执通道实现停等协议：await 每块回执，核对 next_offset 后更新进度，再提交下一块。升级不直接调用原生 API；Android / Windows 桥无需修改。`UsbController.firmwareOperation` 用独立 Object 作为租约身份，取消后旧 finally 不能释放新任务的锁。`FirmwareController` 的验证阶段等待设备页重新连接，通过 boot_session 判断真正的设备重启，不把 MQTT 重连误判为重启。测试端 UsbFirmwareWire 接收实际 JSON 字节、重建 bin 并核对 SHA，不仅模拟一个成功布尔值。

@@ -96,6 +96,7 @@ class UsbController extends Notifier<UsbState> {
   late SerialManagement _client;
   late UsbTokenStore _tokens;
   bool _disposed = false;
+  Object? _firmwareLease;
   int _epoch = 0;
   @override
   UsbState build() {
@@ -169,6 +170,42 @@ class UsbController extends Notifier<UsbState> {
     if (_disposed || epoch != _epoch) throw const AppFailure('USB 操作已经取消。');
   }
 
+  // 固件管理复用同一串口和鉴权，不额外打开第二个原生 USB 连接。
+  // 独立租约身份防止旧异步任务释放后来操作的维护锁。
+  void _releaseFirmware(Object? lease) {
+    if (lease == null || !identical(lease, _firmwareLease)) return;
+    _firmwareLease = null;
+    if (!_disposed) ref.read(sessionProvider.notifier).setMaintenance(false);
+  }
+
+  Future<T> firmwareOperation<T>(
+    Future<T> Function(SerialManagement) work,
+  ) async {
+    if (_disposed ||
+        !state.connected ||
+        state.busy ||
+        !ref.read(sessionProvider.notifier).setMaintenance(true)) {
+      throw const AppFailure('请先在设备页连接 USB，并等待其它操作完成。');
+    }
+    final lease = Object(), epoch = _epoch;
+    _firmwareLease = lease;
+    state = state.copyWith(busy: true, isError: false);
+    try {
+      final result = await work(_client);
+      _alive(epoch);
+      return result;
+    } finally {
+      _releaseFirmware(lease);
+      if (!_disposed && epoch == _epoch) {
+        state = state.copyWith(
+          busy: false,
+          connected: _client.connected,
+          clear: !_client.connected,
+        );
+      }
+    }
+  }
+
   Future<void> refreshDevices() => _run(() async {
     final epoch = _epoch;
     final devices = await _transport.list();
@@ -207,6 +244,7 @@ class UsbController extends Notifier<UsbState> {
       });
 
   Future<void> disconnect() async {
+    _releaseFirmware(_firmwareLease);
     ++_epoch;
     if (!_disposed) {
       state = state.copyWith(

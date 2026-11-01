@@ -150,3 +150,20 @@ Android USB Host 仅枚举 ESP32 原生 USB（VID 0x303A），使用系统授权
 诊断为结构化 checks，每项包含 component / status / code / 固定 message；总 status 取最高严重程度。CLI doctor 也使用诊断 Schema，但 source=doctor、session 为空、valid_until=0，不能当作在线状态。它只以独立随机客户端执行 MQTT CONNECT / DISCONNECT，不验证发布 ACL。
 
 新接口沿用 no-store、拒绝跨源 Origin / 请求体 / 写方法等规则，除 events 外不接受查询参数。字段、默认值、诊断代码与 CLI 实例见 [Go 服务文档](macos-agent.md)。配置重载、命令订阅和客户端诊断页面不属于本轮实现。
+
+
+## Mac IP 地址（Agent 0.2.1 / Flutter 0.3.1）
+
+Agent state 增加可选 `network` 对象，经原有 MQTT state 和鉴权 HTTP status 返回；v 仍为 1，旧状态不含该字段也合法。
+
+```json
+{"network":{"available":true,"addresses":[{"interface":"en0","ip":"192.168.50.90","family":"ipv4"}]}}
+```
+
+每次普通采样重新读取操作系统网卡，不需要重启服务以更新 DHCP 地址。只包含已启用、非回环网卡的全局单播地址（含私网 / IPv6 ULA），排除回环、链路本地、未指定和组播地址。虚拟 / VPN 网卡同样标注名称，不将第一项解释为默认路由。按 IPv4 优先、网卡名和地址排序、去重，最多 32 项。`available=false` 表示枚举或部分网卡读取失败，仍可包含其他成功读取的地址；空数组不复用旧 IP。
+
+Flutter 将地址与其 Mac 快照一起按租约失效，旧 retained 状态不代表当前 IP。network 缺失或格式错误只影响地址显示，不改变锁定 / HID 判断。新协议示例使用文档地址，运行时地址不写入配置。
+
+## 固件 0.3.0 / Flutter 0.4.0：USB OTA
+
+状态增加可选 boot_session 和 usb_ota 能力；原 MQTT session 语义不变。串口新增 ota.begin / write / finish / abort，每条鉴权，3072 字节原始块、严格偏移、整包 SHA-256、备用分区、30 秒空闲 / 10 分钟事务时限。方法、错误与重连确认详见 [USB 升级协议](flutter-usb-ota.md)，Schema 与样例同步在 protocol/v1。

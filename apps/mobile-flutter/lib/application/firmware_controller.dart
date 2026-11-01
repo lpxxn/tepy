@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../data/firmware_client.dart';
 import '../domain/connection_profile.dart';
 import '../domain/firmware_image.dart';
+import '../domain/serial_firmware.dart';
 import 'providers.dart';
 import 'usb_controller.dart';
 
@@ -36,9 +37,12 @@ enum FirmwarePhase {
   failed,
 }
 
+enum FirmwareTransport { network, usb }
+
 final class FirmwareState {
   const FirmwareState({
     this.phase = FirmwarePhase.idle,
+    this.transport = FirmwareTransport.network,
     this.target,
     this.device,
     this.image,
@@ -47,6 +51,7 @@ final class FirmwareState {
     this.error = false,
   });
   final FirmwarePhase phase;
+  final FirmwareTransport transport;
   final FirmwareTarget? target;
   final Map<String, dynamic>? device;
   final FirmwareImage? image;
@@ -63,6 +68,7 @@ final class FirmwareState {
       phase == FirmwarePhase.uploading || phase == FirmwarePhase.verifying;
   FirmwareState copyWith({
     FirmwarePhase? phase,
+    FirmwareTransport? transport,
     FirmwareTarget? target,
     Map<String, dynamic>? device,
     FirmwareImage? image,
@@ -74,6 +80,7 @@ final class FirmwareState {
     bool? error,
   }) => FirmwareState(
     phase: phase ?? this.phase,
+    transport: transport ?? this.transport,
     target: clearTarget ? null : (target ?? this.target),
     device: clearDevice ? null : device ?? this.device,
     image: clearImage ? null : image ?? this.image,
@@ -89,8 +96,45 @@ class FirmwareController extends Notifier<FirmwareState> {
   FirmwareClient? _client;
   bool _disposed = false, _ownsMaintenance = false;
   int _epoch = 0;
+  bool _usbJob = false;
+  ({String deviceId, String session, String version})? _usbExpected;
   @override
   FirmwareState build() {
+    ref.listen(usbProvider.select((s) => s.connected ? s.status : null), (
+      _,
+      next,
+    ) {
+      final expected = _usbExpected;
+      if (_disposed ||
+          expected == null ||
+          next == null ||
+          state.phase != FirmwarePhase.verifying) {
+        return;
+      }
+      try {
+        final current = validateUsbFirmwareStatus(next, expected.deviceId);
+        if (current['session'] == expected.session) return;
+        _usbExpected = null;
+        state = state.copyWith(
+          phase: current['firmware'] == expected.version
+              ? FirmwarePhase.verified
+              : FirmwarePhase.failed,
+          device: current,
+          error: current['firmware'] != expected.version,
+          message: current['firmware'] == expected.version
+              ? 'USB 已重新连接，确认运行版本 ${expected.version}。'
+              : 'USB 重启后的版本与镜像不一致，可能已回滚；请人工检查。',
+        );
+      } on AppFailure catch (e) {
+        _usbExpected = null;
+        state = state.copyWith(
+          phase: FirmwarePhase.failed,
+          message: e.message,
+          error: true,
+          clearDevice: true,
+        );
+      }
+    });
     ref.onDispose(() {
       _disposed = true;
       ++_epoch;
@@ -116,6 +160,138 @@ class FirmwareController extends Notifier<FirmwareState> {
   }
 
   bool _alive(int epoch) => !_disposed && epoch == _epoch;
+  void selectTransport(FirmwareTransport transport) {
+    if (state.busy || state.transport == transport) return;
+    _usbExpected = null;
+    state = state.copyWith(
+      transport: transport,
+      phase: FirmwarePhase.idle,
+      clearDevice: true,
+      error: false,
+      message: transport == FirmwareTransport.usb
+          ? '先在设备页连接 USB，再读取版本。固件需支持 USB 升级。'
+          : '连接 ESP32 的 HTTP 管理地址，选择应用镜像后升级。',
+    );
+  }
+
+  Future<void> readUsbStatus(String deviceId) async {
+    if (state.busy) return;
+    final epoch = ++_epoch;
+    state = state.copyWith(
+      transport: FirmwareTransport.usb,
+      phase: FirmwarePhase.reading,
+      clearDevice: true,
+      error: false,
+      message: '正在通过 USB 核对目标设备…',
+    );
+    _usbJob = true;
+    try {
+      final current = await ref
+          .read(usbProvider.notifier)
+          .firmwareOperation(
+            (client) async => validateUsbFirmwareStatus(
+              await client.request('status.get'),
+              deviceId,
+            ),
+          );
+      if (_alive(epoch)) {
+        state = state.copyWith(
+          phase: FirmwarePhase.idle,
+          device: current,
+          message: supportsUsbFirmware(current)
+              ? 'USB 设备已确认，可选择镜像升级。'
+              : '当前固件尚不支持 USB 升级，请先用网络 OTA 或 IDF 更新到固件 0.3.0。',
+        );
+      }
+    } on AppFailure catch (e) {
+      if (_alive(epoch)) {
+        state = state.copyWith(
+          phase: FirmwarePhase.failed,
+          message: e.message,
+          error: true,
+        );
+      }
+    } catch (_) {
+      if (_alive(epoch)) {
+        state = state.copyWith(
+          phase: FirmwarePhase.failed,
+          message: 'USB 状态读取失败，请重新连接设备。',
+          error: true,
+        );
+      }
+    } finally {
+      if (_alive(epoch)) _usbJob = false;
+    }
+  }
+
+  Future<void> upgradeUsb(String deviceId) async {
+    final image = state.image;
+    if (state.busy ||
+        image == null ||
+        state.transport != FirmwareTransport.usb ||
+        !supportsUsbFirmware(state.device)) {
+      return;
+    }
+    final epoch = ++_epoch;
+    _usbJob = true;
+    state = state.copyWith(
+      phase: FirmwarePhase.uploading,
+      progress: 0,
+      error: false,
+      message: '正在通过 USB 写入备用分区，请保持数据线连接…',
+    );
+    try {
+      final before = await ref
+          .read(usbProvider.notifier)
+          .firmwareOperation(
+            (client) => sendUsbFirmware(
+              client,
+              image,
+              deviceId,
+              () => _alive(epoch),
+              (sent, total) {
+                if (_alive(epoch)) {
+                  state = state.copyWith(progress: sent / total);
+                }
+              },
+            ),
+          );
+      if (!_alive(epoch)) return;
+      _usbExpected = (
+        deviceId: deviceId,
+        session: before['session'] as String,
+        version: image.version,
+      );
+      state = state.copyWith(
+        phase: FirmwarePhase.verifying,
+        progress: 1,
+        clearDevice: true,
+        message: '镜像已校验并接受。请等设备重启，在设备页刷新并重新连接 USB，应用将核对新会话与运行版本。',
+      );
+      await ref.read(usbProvider.notifier).disconnect();
+    } on AppFailure catch (e) {
+      if (_alive(epoch)) {
+        state = state.copyWith(
+          phase: FirmwarePhase.failed,
+          clearDevice: true,
+          message: e.message,
+          error: true,
+        );
+      }
+    } catch (_) {
+      if (_alive(epoch)) {
+        state = state.copyWith(
+          phase: FirmwarePhase.failed,
+          clearDevice: true,
+          message: 'USB 写入结果尚未确认，请重新连接读取版本；不会自动重传。',
+          error: true,
+        );
+      }
+    } finally {
+      if (_alive(epoch)) _usbJob = false;
+    }
+  }
+
   void _release() {
     if (_ownsMaintenance && !_disposed) {
       _ownsMaintenance = false;
@@ -127,6 +303,7 @@ class FirmwareController extends Notifier<FirmwareState> {
     if (state.busy) return;
     final epoch = ++_epoch;
     state = state.copyWith(
+      transport: FirmwareTransport.network,
       phase: FirmwarePhase.reading,
       clearDevice: true,
       message: '正在核对设备身份与运行版本…',
@@ -192,7 +369,11 @@ class FirmwareController extends Notifier<FirmwareState> {
 
   Future<void> upgrade() async {
     final target = state.target, image = state.image;
-    if (state.busy || target == null || image == null || state.device == null) {
+    if (state.busy ||
+        state.transport != FirmwareTransport.network ||
+        target == null ||
+        image == null ||
+        state.device == null) {
       return;
     }
     if (ref.read(usbProvider).busy ||
@@ -303,8 +484,19 @@ class FirmwareController extends Notifier<FirmwareState> {
   void cancel({bool background = false}) {
     // 系统文件选择器会暂时把应用切到后台；它只选择文件，不会自动执行升级。
     if (background && state.phase == FirmwarePhase.selecting) return;
+    // 等待人工重新插线/授权只有只读核对，没有待发送的数据，可跨后台保留。
+    if (background &&
+        state.transport == FirmwareTransport.usb &&
+        state.phase == FirmwarePhase.verifying) {
+      return;
+    }
     if (!state.busy) return;
     ++_epoch;
+    _usbExpected = null;
+    if (_usbJob) {
+      _usbJob = false;
+      unawaited(ref.read(usbProvider.notifier).disconnect());
+    }
     _client?.close();
     _client = null;
     _release();

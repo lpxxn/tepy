@@ -95,7 +95,10 @@
           "type": "boolean"
         },
         "protocol_mode": {
-          "enum": ["report", "boot"]
+          "enum": [
+            "report",
+            "boot"
+          ]
         },
         "report_subscribed": {
           "type": "boolean"
@@ -108,7 +111,23 @@
           "uniqueItems": true,
           "maxItems": 15,
           "items": {
-            "enum": ["information", "report_map", "control", "protocol", "input", "output", "boot_input", "boot_output", "input_reference", "output_reference", "pnp", "manufacturer", "model", "serial", "firmware"]
+            "enum": [
+              "information",
+              "report_map",
+              "control",
+              "protocol",
+              "input",
+              "output",
+              "boot_input",
+              "boot_output",
+              "input_reference",
+              "output_reference",
+              "pnp",
+              "manufacturer",
+              "model",
+              "serial",
+              "firmware"
+            ]
           }
         },
         "tx_completed": {
@@ -128,6 +147,28 @@
         "bonded",
         "pairing_open",
         "passkey_pending"
+      ],
+      "additionalProperties": false
+    },
+    "boot_session": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{32}$"
+    },
+    "usb_ota": {
+      "type": "object",
+      "properties": {
+        "v": {
+          "const": 1
+        },
+        "max_chunk_bytes": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 3072
+        }
+      },
+      "required": [
+        "v",
+        "max_chunk_bytes"
       ],
       "additionalProperties": false
     }

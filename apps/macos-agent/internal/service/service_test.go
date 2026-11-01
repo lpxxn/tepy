@@ -13,6 +13,35 @@ import (
 
 type fakeProbe struct{}
 
+func TestNetworkRefreshesAndStoreOwnsAddresses(t *testing.T) {
+	c := config.Default()
+	c.AgentID = "mac-test"
+	s, err := New(c, "test", fakeProbe{}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ip := "192.168.50.90"
+	s.Network = func() model.Network {
+		return model.Network{Available: true, Addresses: []model.NetworkAddress{{Interface: "en0", IP: ip, Family: "ipv4"}}}
+	}
+	s.Sample()
+	first := s.Store.Get()
+	first.Network.Addresses[0].IP = "modified by reader"
+	if s.Store.Get().Network.Addresses[0].IP != ip {
+		t.Fatal("network storage aliased reader")
+	}
+	ip = "192.168.50.246"
+	s.Sample()
+	if s.Store.Get().Network.Addresses[0].IP != ip {
+		t.Fatal("address change did not appear in next state")
+	}
+	s.Network = func() model.Network { return model.Network{Addresses: []model.NetworkAddress{}} }
+	s.Sample()
+	if state := s.Store.Get(); state.Network.Available || len(state.Network.Addresses) != 0 {
+		t.Fatal("failed sample retained old IP")
+	}
+}
+
 func (fakeProbe) Sample(id string) platform.Snapshot {
 	return platform.Snapshot{Session: model.Session{LockState: "unknown", LockSource: "unavailable"}, HID: model.HID{State: "unknown", TargetDeviceID: id, Devices: []model.HIDDevice{}}}
 }

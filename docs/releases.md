@@ -180,3 +180,12 @@ Windows 输出 `dist/flutter-windows/0.2.0/`，包括 `tepy.exe`、DLL、`data`�
 `pubspec.yaml` 为 `0.3.0+7`，Android / Windows 共用。新增 Mac 诊断 / 事件、明文 JSON 登录密码设置和网络 OTA，说明见 [Flutter 管理](flutter-management.md)。日常 APK 为 `dist/mobile-flutter/0.3.0/tepy-mobile-0.3.0-arm64.apk`，Windows 为 `dist/tepy-flutter-0.3.0-windows-x64.zip`。
 
 `mac-passwords.json` 和临时文件已忽略，运行文件位于应用支持目录，不随二进制 / 源码快照分发。构建不自动安装手机，不自动升级 ESP32。
+
+
+## Flutter 0.3.1 / Agent 0.2.1
+
+新增 Mac IP 地址上报与显示。Flutter `pubspec.yaml` 为 `0.3.1+8`，Android / Windows 共用。输出 `dist/mobile-flutter/0.3.1/tepy-mobile-0.3.1-arm64.apk` 和 `dist/tepy-flutter-0.3.1-windows-x64.zip`。原生 Agent 输出 `dist/tepy-macos-agent-0.2.1-darwin-arm64.zip`，升级保留 TOML。
+
+## Flutter 0.4.0 / 固件 0.3.0
+
+Flutter 为 0.4.0+9，新增 USB 应用升级。输出 dist/mobile-flutter/0.4.0、dist/tepy-flutter-0.4.0-windows-x64.zip；固件由 package-firmware.ps1 输出 dist/firmware/0.3.0。升级 USB 协议需要先为旧设备安装一次 0.3.0。保留旧版本归档；未自动安装手机或刷开发板。
