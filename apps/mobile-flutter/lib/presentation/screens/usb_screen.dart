@@ -295,11 +295,17 @@ class _UsbScreenState extends ConsumerState<UsbScreen>
           ),
         ),
         const SizedBox(height: 16),
-        if (state.busy)
-          const Padding(
-            padding: EdgeInsets.only(bottom: 16),
-            child: LinearProgressIndicator(),
-          ),
+        // 固定进度条的位置与高度，避免忙碌切换改变 ListView 子项索引，
+        // 导致下面的输入框被销毁，丢失正在等待口令回执的 State。
+        SizedBox(
+          height: 20,
+          child: state.busy
+              ? const Align(
+                  alignment: Alignment.topCenter,
+                  child: LinearProgressIndicator(),
+                )
+              : null,
+        ),
         Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(

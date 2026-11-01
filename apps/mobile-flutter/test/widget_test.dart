@@ -40,10 +40,16 @@ void main() {
       ProviderContainer container,
       FakeBroker broker,
       FakeStore store,
+      FakeUsb usb,
       void Function() dispose,
     })
   >
-  mount(WidgetTester tester, {double width = 390, double height = 844}) async {
+  mount(
+    WidgetTester tester, {
+    double width = 390,
+    double height = 844,
+    AppPlatform platform = AppPlatform.android,
+  }) async {
     tester.view.physicalSize = Size(width, height);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
@@ -54,7 +60,7 @@ void main() {
         usb = FakeUsb();
     final container = ProviderContainer(
       overrides: [
-        appPlatformProvider.overrideWithValue(AppPlatform.android),
+        appPlatformProvider.overrideWithValue(platform),
         clockProvider.overrideWithValue(clock),
         connectionStoreProvider.overrideWithValue(store),
         transportFactoryProvider.overrideWithValue(() => broker),
@@ -85,6 +91,7 @@ void main() {
       container: container,
       broker: broker,
       store: store,
+      usb: usb,
       dispose: dispose,
     );
   }
@@ -104,18 +111,34 @@ void main() {
     });
   }
 
-  testWidgets('USB saved password reveals without entering replacement mode', (
+  testWidgets('Windows delayed USB secret reply preserves the visible input', (
     tester,
   ) async {
-    final app = await mount(tester, width: 1440, height: 1800);
+    final app = await mount(
+      tester,
+      width: 1440,
+      height: 900,
+      platform: AppPlatform.windows,
+    );
+    final replyGate = Completer<void>();
+    app.usb.secretReplyGate = replyGate.future;
     await tester.tap(find.text('设备').last);
     await tester.pumpAndSettle();
     final controller = app.container.read(usbProvider.notifier);
     await controller.connect('1:0', 'ExampleAdminTokenOnly0000');
     await tester.pumpAndSettle();
     final field = find.byKey(const Key('usbWifiPassword'));
-    await tester.ensureVisible(field);
+    final scrollable = find
+        .descendant(
+          of: find.byKey(const PageStorageKey('usb')),
+          matching: find.byType(Scrollable),
+        )
+        .first;
+    await tester.scrollUntilVisible(field, 250, scrollable: scrollable);
+    await Scrollable.ensureVisible(tester.element(field), alignment: 0.4);
     await tester.pumpAndSettle();
+    expect(app.container.read(usbProvider).connected, true);
+    expect(tester.widget<TextField>(field).enabled, true);
     expect(tester.widget<TextField>(field).controller!.text, isEmpty);
     expect(
       tester.widget<TextField>(field).decoration!.hintText,
@@ -131,8 +154,25 @@ void main() {
       of: field,
       matching: find.byType(IconButton),
     );
+    final inputElement = tester.element(field);
+    final inputBounds = tester.getRect(field);
     await tester.tap(toggle);
+    await tester.pump(const Duration(milliseconds: 150));
+    expect(app.container.read(usbProvider).busy, true);
+    expect(
+      tester.element(field),
+      same(inputElement),
+      reason: 'Reading a secret must retain the input element',
+    );
+    expect(
+      tester.getRect(field),
+      inputBounds,
+      reason: 'Reading a secret must not shift the page layout',
+    );
+    replyGate.complete();
     await tester.pumpAndSettle();
+    expect(tester.element(field), same(inputElement));
+    expect(tester.getRect(field), inputBounds);
     expect(
       tester.widget<TextField>(field).controller!.text,
       'SavedWifiOnly123',

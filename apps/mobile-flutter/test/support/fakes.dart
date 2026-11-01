@@ -249,6 +249,7 @@ final class FakeUsb implements UsbTransport {
   final _events = StreamController<UsbEvent>.broadcast(sync: true);
   final sent = <Map<String, dynamic>>[];
   bool autoReply = true;
+  Future<void>? secretReplyGate;
   @override
   Stream<UsbEvent> get events => _events.stream;
   @override
@@ -262,6 +263,7 @@ final class FakeUsb implements UsbTransport {
     final value =
         jsonDecode(utf8.decode(bytes).substring(6)) as Map<String, dynamic>;
     sent.add(value);
+    if (value['method'] == 'config.secrets.get') await secretReplyGate;
     if (autoReply) {
       scheduleMicrotask(
         () => frame({
