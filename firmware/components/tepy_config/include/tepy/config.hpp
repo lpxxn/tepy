@@ -17,6 +17,8 @@ class ConfigStore {
     esp_err_t init(bool &created);
     Config snapshot() const;
     std::string public_json() const;
+    // Only expose through authenticated management transports, on an explicit reveal request.
+    std::string secrets_json() const;
     std::string_view patch(std::string_view input);
     bool authenticate(std::string_view password) const;
 

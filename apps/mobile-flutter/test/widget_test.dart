@@ -104,6 +104,50 @@ void main() {
     });
   }
 
+  testWidgets('USB saved password reveals without entering replacement mode', (
+    tester,
+  ) async {
+    final app = await mount(tester, width: 1440, height: 1800);
+    await tester.tap(find.text('设备').last);
+    await tester.pumpAndSettle();
+    final controller = app.container.read(usbProvider.notifier);
+    await controller.connect('1:0', 'ExampleAdminTokenOnly0000');
+    await tester.pumpAndSettle();
+    final field = find.byKey(const Key('usbWifiPassword'));
+    await tester.ensureVisible(field);
+    await tester.pumpAndSettle();
+    expect(tester.widget<TextField>(field).controller!.text, isEmpty);
+    expect(
+      tester.widget<TextField>(field).decoration!.hintText,
+      contains('已保存'),
+    );
+    expect(tester.widget<TextField>(field).readOnly, true);
+    expect(
+      tester.widget<TextField>(field).decoration!.floatingLabelBehavior,
+      FloatingLabelBehavior.always,
+    );
+    await preview(tester, 'saved-passwords-initial');
+    final toggle = find.descendant(
+      of: field,
+      matching: find.byType(IconButton),
+    );
+    await tester.tap(toggle);
+    await tester.pumpAndSettle();
+    expect(
+      tester.widget<TextField>(field).controller!.text,
+      'SavedWifiOnly123',
+    );
+    expect(tester.widget<TextField>(field).obscureText, false);
+    expect(tester.widget<TextField>(field).readOnly, true);
+    await tester.tap(toggle);
+    await tester.pumpAndSettle();
+    expect(tester.widget<TextField>(field).obscureText, true);
+    await preview(tester, 'saved-passwords');
+    await tester.pumpWidget(const SizedBox.shrink());
+    app.dispose();
+    await tester.pump();
+  });
+
   testWidgets(
     'four pages render, network update preserves draft, no auto-connect',
     (tester) async {

@@ -39,6 +39,7 @@ Route routeFor(const QString &method) {
     static const QMap<QString, Route> routes{
         {QStringLiteral("status.get"), {"GET", QStringLiteral("/api/v1/status")}},
         {QStringLiteral("config.get"), {"GET", QStringLiteral("/api/v1/config")}},
+        {QStringLiteral("config.secrets.get"), {"GET", QStringLiteral("/api/v1/config/secrets")}},
         {QStringLiteral("config.patch"), {"PATCH", QStringLiteral("/api/v1/config")}},
         {QStringLiteral("wifi.scan"), {"GET", QStringLiteral("/api/v1/wifi/scan")}},
         {QStringLiteral("ble.pair"), {"POST", QStringLiteral("/api/v1/ble/pair")}},

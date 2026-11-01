@@ -24,3 +24,5 @@ Qt 串口刷机读取 IDF 的 `flasher_args.json`，分别写入 bootloader、�
 ```
 
 脚本先核对源码版本、应用版本及合并镜像中的应用字节一致，再生成 `dist/firmware/<version>/`，包含应用、合并镜像、分段清单及文件、分区表、依赖锁与 SHA256SUMS。
+
+版本来自 `firmware/CMakeLists.txt` 的 `project(tepy VERSION ...)`；修改后需重新编译并生成合并镜像。脚本不自动生成 ZIP，压缩包生成方式及其他项目的版本维护见 [构建、发布目录与版本号](releases.md)。

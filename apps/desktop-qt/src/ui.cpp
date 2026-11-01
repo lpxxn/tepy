@@ -1,10 +1,48 @@
 #include "ui.hpp"
+#include <QAction>
 #include <QHBoxLayout>
 #include <QPainter>
 #include <QPainterPath>
 #include <QStyle>
 
 namespace tepy::desktop::ui {
+QAction *passwordToggle(QLineEdit *editor) {
+    editor->setEchoMode(QLineEdit::Password);
+    const auto icon = [](bool visible) {
+        QPixmap pixmap(40, 40);
+        pixmap.fill(Qt::transparent);
+        QPainter painter(&pixmap);
+        painter.setRenderHint(QPainter::Antialiasing);
+        painter.scale(2, 2);
+        painter.setPen(QPen(QColor(QStringLiteral("#596b80")), 1.5, Qt::SolidLine,
+                            Qt::RoundCap, Qt::RoundJoin));
+        QPainterPath eye;
+        eye.moveTo(2, 10);
+        eye.quadTo(10, 1, 18, 10);
+        eye.quadTo(10, 19, 2, 10);
+        painter.drawPath(eye);
+        painter.drawEllipse(QPointF(10, 10), 2.5, 2.5);
+        if (visible)
+            painter.drawLine(3, 3, 17, 17);
+        return QIcon(pixmap);
+    };
+    auto *toggle = editor->addAction(icon(false), QLineEdit::TrailingPosition);
+    toggle->setObjectName(QStringLiteral("passwordToggle"));
+    toggle->setCheckable(true);
+    toggle->setText(QStringLiteral("显示口令"));
+    toggle->setToolTip(toggle->text());
+    QObject::connect(toggle, &QAction::toggled, editor, [editor, toggle, icon](bool visible) {
+        editor->setEchoMode(visible ? QLineEdit::Normal : QLineEdit::Password);
+        toggle->setIcon(icon(visible));
+        toggle->setText(visible ? QStringLiteral("隐藏口令") : QStringLiteral("显示口令"));
+        toggle->setToolTip(toggle->text());
+    });
+    QObject::connect(editor, &QLineEdit::textChanged, toggle, [toggle](const QString &text) {
+        if (text.isEmpty())
+            toggle->setChecked(false);
+    });
+    return toggle;
+}
 QLabel *label(const QString &text, const char *name, QWidget *parent) {
     auto *result = new QLabel(text, parent);
     result->setObjectName(QString::fromLatin1(name));

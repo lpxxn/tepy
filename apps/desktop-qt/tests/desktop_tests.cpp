@@ -6,6 +6,7 @@
 #include "main_window.hpp"
 #include "protocol.hpp"
 #include "ui.hpp"
+#include <QAction>
 #include <QDateTime>
 #include <QEvent>
 #include <QFile>
@@ -217,7 +218,30 @@ class DesktopTests : public QObject {
         QVERIFY(!patch.contains(QStringLiteral("admin_password")));
         auto *secret = form.findChild<SecretField *>(QStringLiteral("wifiPassword"));
         QVERIFY(secret);
+        QVERIFY(secret->editor()->isEnabled());
+        QVERIFY(secret->editor()->isReadOnly());
+        QVERIFY(secret->editor()->placeholderText().contains(QStringLiteral("••••")));
+        auto *toggle = secret->editor()->findChild<QAction *>(QStringLiteral("passwordToggle"));
+        QVERIFY(toggle);
+        QSignalSpy reveal(&form, &ConfigForm::revealRequested);
+        toggle->trigger();
+        QCOMPARE(reveal.count(), 1);
+        const QJsonObject savedSecrets{
+            {QStringLiteral("v"), 1},
+            {QStringLiteral("wifi"),
+             QJsonObject{{QStringLiteral("password"), QStringLiteral("SavedWifiOnly123")}}},
+            {QStringLiteral("mqtt"), QJsonObject{{QStringLiteral("password"), QString()}}},
+            {QStringLiteral("admin_password"), QStringLiteral("ExampleAdminTokenOnly0000")}};
+        QVERIFY(form.loadSecrets(savedSecrets));
+        QCOMPARE(secret->editor()->text(), QStringLiteral("SavedWifiOnly123"));
+        QCOMPARE(secret->editor()->echoMode(), QLineEdit::Normal);
+        patch = form.patch(error);
+        QVERIFY(!patch.value(QStringLiteral("wifi")).toObject().contains(QStringLiteral("password")));
+        QVERIFY(!patch.contains(QStringLiteral("admin_password")));
+        toggle->trigger();
+        QCOMPARE(secret->editor()->echoMode(), QLineEdit::Password);
         secret->mode()->setCurrentIndex(1);
+        QVERIFY(secret->editor()->text().isEmpty());
         secret->editor()->setText(QStringLiteral("1234567"));
         form.patch(error);
         QVERIFY(!error.isEmpty());
@@ -504,7 +528,8 @@ class DesktopTests : public QObject {
         QCOMPARE(token->echoMode(), QLineEdit::Password);
         button->click();
         QTRY_VERIFY(save->isEnabled());
-        QVERIFY(!token->isEnabled());
+        QVERIFY(token->isEnabled());
+        QVERIFY(token->isReadOnly());
         QCOMPARE(fixture.hits, 2u);
         const auto preview = qEnvironmentVariable("TEPY_TEST_PREVIEW");
         if (!preview.isEmpty()) {

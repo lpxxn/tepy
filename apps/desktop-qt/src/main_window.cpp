@@ -126,7 +126,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
     endpoint->addWidget(portRow);
     token_ = new QLineEdit(connectionCard.widget);
     token_->setObjectName(QStringLiteral("managementToken"));
-    token_->setEchoMode(QLineEdit::Password);
+    ui::passwordToggle(token_);
     token_->setMaxLength(64);
     token_->setPlaceholderText(QStringLiteral("输入设备管理口令"));
     auto *fields = new QHBoxLayout;
@@ -253,6 +253,8 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
     auto *configScroll = new QScrollArea(configPage);
     configScroll->setWidgetResizable(true);
     config_ = new ConfigForm(configScroll);
+    connect(config_, &ConfigForm::revealRequested, this,
+            [this] { perform(QStringLiteral("config.secrets.get")); });
     configScroll->setWidget(config_);
     configLayout->addWidget(configScroll, 1);
     auto *configActions = new QHBoxLayout;
@@ -285,7 +287,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
                                        QStringLiteral("若 Mac 显示六位配对码，在下方输入并提交。"),
                                        bleCard.widget));
     passkey_ = new QLineEdit(bleCard.widget);
-    passkey_->setEchoMode(QLineEdit::Password);
+    ui::passwordToggle(passkey_);
     passkey_->setMaxLength(6);
     passkey_->setValidator(new QRegularExpressionValidator(
         QRegularExpression(QStringLiteral("[0-9]{0,6}")), passkey_));
@@ -621,7 +623,8 @@ void MainWindow::updateControls() {
     transport_->setEnabled(editableConnection);
     address_->setEnabled(editableConnection && !serial);
     ports_->setEnabled(editableConnection && serial);
-    token_->setEnabled(editableConnection);
+    token_->setEnabled(idle);
+    token_->setReadOnly(!editableConnection);
     config_->setEnabled(ready && configLoaded_);
     save_->setEnabled(ready && configLoaded_);
     reload_->setEnabled(ready);
@@ -733,6 +736,11 @@ void MainWindow::success(const QString &method, const QJsonObject &result) {
                      configLoaded_ ? QStringLiteral("success") : QStringLiteral("error"));
         notice_->setText(configLoaded_ ? QStringLiteral("已读取脱敏配置。密码默认保持原值。")
                                        : describeError(QStringLiteral("invalid_response")));
+    } else if (method == QStringLiteral("config.secrets.get")) {
+        if (!config_->loadSecrets(result)) {
+            failure(method, describeError(QStringLiteral("invalid_response")));
+            return;
+        }
     } else if (method == QStringLiteral("config.patch")) {
         if (!pendingAdmin_.isEmpty()) {
             client_.setToken(pendingAdmin_);
@@ -774,6 +782,8 @@ void MainWindow::success(const QString &method, const QJsonObject &result) {
     updateControls();
 }
 void MainWindow::failure(const QString &method, const QString &message) {
+    if (method == QStringLiteral("config.secrets.get"))
+        config_->hideSecrets();
     if (method == QStringLiteral("status.get") && !initialConfig_) {
         statusFailed_ = true;
         connection_->setText(QStringLiteral("连接异常"));

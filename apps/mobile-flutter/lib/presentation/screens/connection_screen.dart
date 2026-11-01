@@ -8,6 +8,7 @@ import '../../data/platform_info.dart';
 import '../../application/session_state.dart';
 import '../../domain/connection_profile.dart';
 import '../widgets/common.dart';
+import '../widgets/secret_text_field.dart';
 
 /// TextEditingController 属于界面层，必须在 State.dispose 中释放。
 /// 不能在 build() 里创建，否则每次收到状态消息都会重置文本和光标。
@@ -144,22 +145,34 @@ class _ConnectionScreenState extends ConsumerState<ConnectionScreen> {
       // 防止读取到祖先 ExpansionTile 保存的 bool 展开状态。
       key: PageStorageKey('connection-input-$key'),
       padding: const EdgeInsets.only(bottom: 16),
-      child: TextField(
-        key: Key(key),
-        controller: controller,
-        enabled: editable,
-        obscureText: secret,
-        maxLines: lines,
-        autocorrect: false,
-        enableSuggestions: false,
-        enableIMEPersonalizedLearning: false,
-        onChanged: (_) => _dirty = true,
-        decoration: InputDecoration(
-          labelText: label,
-          helperText: helper,
-          helperMaxLines: 3,
-        ),
-      ),
+      child: secret
+          ? SecretTextField(
+              inputKey: Key(key),
+              controller: controller,
+              enabled: !state.loading && !state.saving && !state.busy,
+              readOnly: !editable,
+              onChanged: (_) => _dirty = true,
+              decoration: InputDecoration(
+                labelText: label,
+                helperText: helper,
+                helperMaxLines: 3,
+              ),
+            )
+          : TextField(
+              key: Key(key),
+              controller: controller,
+              enabled: editable,
+              maxLines: lines,
+              autocorrect: false,
+              enableSuggestions: false,
+              enableIMEPersonalizedLearning: false,
+              onChanged: (_) => _dirty = true,
+              decoration: InputDecoration(
+                labelText: label,
+                helperText: helper,
+                helperMaxLines: 3,
+              ),
+            ),
     );
     final windows = ref.watch(appPlatformProvider) == AppPlatform.windows;
     return PageContent(

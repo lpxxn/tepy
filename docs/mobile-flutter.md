@@ -17,6 +17,8 @@ Tepy Flutter 0.2.0 位于 `apps/mobile-flutter`。当前提供 arm64 APK，适�
 ```powershell
 adb devices
 adb -s <手机序列号> install -r dist/mobile-flutter/0.2.0/tepy-mobile-0.2.0-arm64.apk
+
+adb -s 手机设备ID install -r .\build\app\outputs\flutter-apk\app-release.apk
 ```
 
 也可将 APK 复制到手机后按系统安装界面操作。版本升级使用相同签名；不要为了处理安装错误直接卸载已有应用，以免丢失连接信息。
@@ -92,3 +94,5 @@ flutter drive -d <手机序列号> --driver test_driver/integration_test.dart --
 移除构建命令里的 DEVICE_CHECK 可仅检查原生界面、存储和 USB 枚举；改成 BROKER_CHECK 则只要求 Mac Agent。启用真实 Broker 检查时会持续观察 45 秒，需保持 Mac 唤醒、ESP32 在线及手机解锁，期间不要操作测试界面。测试不发送按键。不要直接使用旧 APK 缓存运行 `flutter test -d` 切换包名；上面的预构建 drive 流程使用 APK 的实际身份。
 
 集成测试构建的是测试入口，日常安装使用 `lib/main.dart`。Debug / Release 切换时让 Flutter 重新生成插件注册文件，不加 `--no-pub`。Find X9 的原生安全存储、四页导航、USB 枚举及真实 Broker / Mac 状态只读订阅已通过；0.1.1 的手机真实解锁和状态稳定已由用户确认。手机至 ESP32 的实际 OTG 读写、完整 ASCII／组合键及远程 TLS/mTLS Broker 仍需专项实机验收。
+
+设备页在“保留原值”时也展示已保存密码的掩码，点击眼睛后通过 USB `config.secrets.get` 读取原文；需要更新到支持该接口的设备固件。查看不改变密码操作选项，不持久保存读取到的设备密码。已保存的管理口令和 Broker 密码连接后仍可查看，编辑保持锁定。

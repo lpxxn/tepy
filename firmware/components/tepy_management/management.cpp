@@ -33,6 +33,8 @@ std::string Management::dispatch(std::string_view method, std::string_view param
         return services_.status();
     if (method == "config.get")
         return services_.config.public_json();
+    if (method == "config.secrets.get")
+        return services_.config.secrets_json();
     if (method == "wifi.scan")
         return services_.network.scan();
     if (method != "ble.pair" && method != "ble.clear" && method != "reboot")

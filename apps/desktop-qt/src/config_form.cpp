@@ -21,25 +21,47 @@ SecretField::SecretField(bool allowClear, QWidget *parent) : QWidget(parent) {
     if (allowClear)
         mode_->addItem(QStringLiteral("清除"), 2);
     edit_ = new QLineEdit(this);
-    edit_->setEchoMode(QLineEdit::Password);
-    edit_->setEnabled(false);
+    toggle_ = ui::passwordToggle(edit_);
+    edit_->setReadOnly(true);
     layout->addWidget(mode_);
     layout->addWidget(edit_, 1);
     connect(mode_, &QComboBox::currentIndexChanged, this, [this] {
+        hideSecret();
         edit_->clear();
-        edit_->setEnabled(mode_->currentData().toInt() == 1);
+        const auto mode = mode_->currentData().toInt();
+        edit_->setEnabled(mode != 2);
+        edit_->setReadOnly(mode != 1);
+        if (mode == 0)
+            edit_->setText(saved_);
+        edit_->setPlaceholderText(mode == 0 && isSet_ ? QStringLiteral("••••••••（已保存）")
+                                                     : QStringLiteral("尚未设置"));
+    });
+    connect(toggle_, &QAction::toggled, this, [this](bool visible) {
+        if (visible && mode_->currentData().toInt() == 0 && isSet_ && saved_.isEmpty())
+            emit revealRequested();
     });
 }
-void SecretField::reset(bool isSet) {
+void SecretField::reset(bool isSet, const QString &saved) {
     isSet_ = isSet;
+    saved_ = saved;
+    hideSecret();
     mode_->setCurrentIndex(0);
-    edit_->clear();
-    edit_->setPlaceholderText(isSet ? QStringLiteral("已设置，保持不变")
+    edit_->setEnabled(true);
+    edit_->setReadOnly(true);
+    edit_->setText(saved_);
+    edit_->setPlaceholderText(isSet ? QStringLiteral("••••••••（已保存，点击眼睛查看）")
                                     : QStringLiteral("尚未设置"));
 }
+void SecretField::setSaved(const QString &saved) {
+    saved_ = saved;
+    if (mode_->currentData().toInt() == 0)
+        edit_->setText(saved_);
+}
+void SecretField::hideSecret() { toggle_->setChecked(false); }
 void SecretField::committed() {
     const auto mode = mode_->currentData().toInt();
-    reset(mode == 0 ? isSet_ : mode == 1);
+    reset(mode == 0 ? isSet_ : mode == 1,
+          mode == 0 ? saved_ : mode == 1 ? edit_->text() : QString());
 }
 QString SecretField::replacement() const {
     return mode_->currentData().toInt() == 1 ? edit_->text() : QString();
@@ -79,6 +101,8 @@ ConfigForm::ConfigForm(QWidget *parent) : QWidget(parent) {
     mqttPassword_->setObjectName(QStringLiteral("mqttPassword"));
     admin_ = new SecretField(false, this);
     admin_->setObjectName(QStringLiteral("adminPassword"));
+    for (auto *secret : {wifiPassword_, mqttPassword_, admin_})
+        connect(secret, &SecretField::revealRequested, this, &ConfigForm::revealRequested);
     ca_ = new QPlainTextEdit(this);
     ca_->setObjectName(QStringLiteral("mqttCa"));
     ca_->setMaximumHeight(115);
@@ -186,6 +210,23 @@ bool ConfigForm::load(const QJsonObject &config) {
     mqttPassword_->reset(mqtt.value(QStringLiteral("password_set")).toBool());
     admin_->reset(true);
     return true;
+}
+bool ConfigForm::loadSecrets(const QJsonObject &secrets) {
+    const auto wifi = secrets.value(QStringLiteral("wifi")).toObject(),
+               mqtt = secrets.value(QStringLiteral("mqtt")).toObject();
+    if (secrets.value(QStringLiteral("v")).toInt() != 1 ||
+        !wifi.value(QStringLiteral("password")).isString() ||
+        !mqtt.value(QStringLiteral("password")).isString() ||
+        !secrets.value(QStringLiteral("admin_password")).isString())
+        return false;
+    wifiPassword_->setSaved(wifi.value(QStringLiteral("password")).toString());
+    mqttPassword_->setSaved(mqtt.value(QStringLiteral("password")).toString());
+    admin_->setSaved(secrets.value(QStringLiteral("admin_password")).toString());
+    return true;
+}
+void ConfigForm::hideSecrets() {
+    for (auto *secret : {wifiPassword_, mqttPassword_, admin_})
+        secret->hideSecret();
 }
 QJsonObject ConfigForm::patch(QString &error) const {
     error.clear();

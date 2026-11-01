@@ -1,7 +1,9 @@
 #pragma once
 #include <QFrame>
+#include <QAction>
 #include <QIcon>
 #include <QLabel>
+#include <QLineEdit>
 #include <QPushButton>
 #include <QVBoxLayout>
 
@@ -14,6 +16,7 @@ Card card(const QString &title, const QString &description, QWidget *parent);
 QLabel *label(const QString &text, const char *name, QWidget *parent);
 QPushButton *button(const QString &text, const char *variant, QWidget *parent);
 QWidget *field(const QString &title, QWidget *editor, QWidget *parent);
+QAction *passwordToggle(QLineEdit *editor);
 QWidget *step(const QString &number, const QString &title, const QString &description,
               QWidget *parent);
 void property(QWidget *widget, const char *name, const QVariant &value);

@@ -42,6 +42,7 @@ key 接受单个 ASCII 字符，以及 `ENTER TAB ESC BACKSPACE DELETE SPACE LEF
 | --- | --- |
 | GET /api/v1/status | 当前状态；含 BLE 配对是否待输入 |
 | GET /api/v1/config | 脱敏配置与密码是否已设置 |
+| GET /api/v1/config/secrets | 显式查看已保存的 Wi-Fi、MQTT 密码与管理口令，需要当前管理口令鉴权；响应禁止缓存 |
 | PATCH /api/v1/config | 合并配置并持久化，成功后需手动重启 |
 | GET /api/v1/wifi/scan | 触发异步扫描；再次请求取得结果 |
 | POST /api/v1/ble/pair | 开启 120 秒配对窗口，无请求体 |
@@ -69,6 +70,7 @@ ESP32-S3 原生 USB Serial/JTAG，115200 / 8N1、无流控。默认 UART 控制�
 | --- | --- | --- |
 | status.get | `{}` | 与 HTTP status 相同 |
 | config.get | `{}` | 与 HTTP 脱敏配置相同 |
+| config.secrets.get | `{}` | 与 HTTP 口令查看接口相同，见 `config-secrets.schema.json` |
 | config.patch | 配置 PATCH，含 `v:1` | `{"ok":true,"reboot_required":true}` |
 | wifi.scan | `{}` | `scanning`；结束时含 `networks` |
 | ble.pair | `{}` | `{"ok":true}` |
@@ -78,7 +80,7 @@ ESP32-S3 原生 USB Serial/JTAG，115200 / 8N1、无流控。默认 UART 控制�
 
 每次请求都必须携带当前管理口令，不能由物理连接跳过鉴权。`id` 为 1–64 个 ASCII 字母、数字、`-_.`，客户端为每次请求生成新 ID，忽略不匹配回复。没有可用 ID 的错误回复使用空 ID。
 
-成功封装为 `{"v":1,"id":"...","ok":true,"result":{...}}`，失败为 `{"v":1,"id":"...","ok":false,"error":"..."}`。协议错误包括 `invalid_request`、`unsupported_version`、`unauthorized`、`frame_too_large`、`internal_error`；业务错误复用 HTTP，例如 `invalid_wifi_password`、`busy`、`already_bonded`、`invalid_passkey`。不回显 token、配置密码或配对码。
+成功封装为 `{"v":1,"id":"...","ok":true,"result":{...}}`，失败为 `{"v":1,"id":"...","ok":false,"error":"..."}`。协议错误包括 `invalid_request`、`unsupported_version`、`unauthorized`、`frame_too_large`、`internal_error`；业务错误复用 HTTP，例如 `invalid_wifi_password`、`busy`、`already_bonded`、`invalid_passkey`。常规响应不回显 token、配置密码或配对码；只有显式调用并通过鉴权的 `config.secrets.get` 返回所请求的设备已保存口令。该响应仅用于当前查看界面，不写入状态日志或客户端配置。
 
 USB 回复和普通启动日志可能共用串口；客户端只解析以 `@tepy:` 开头的完整行，不展示其他行。Qt 只跟踪一个有效管理请求，15 秒没有对应回复即报结果未确认，不自动重发。桌面 0.1.1 允许用户操作替代后台状态／扫描读取，取消客户端等待并忽略旧 ID 的迟到回复；前台写操作不被替代，也不积压或重发。此接口不提供 MQTT 动作或串口二进制 OTA；固件升级使用 HTTP OTA 或 ROM 下载器。
 

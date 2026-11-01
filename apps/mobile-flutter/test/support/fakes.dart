@@ -268,9 +268,16 @@ final class FakeUsb implements UsbTransport {
           'v': 1,
           'id': value['id'],
           'ok': true,
-          'result': value['method'] == 'config.get'
-              ? configJson()
-              : {'v': 1, 'device_id': 'aabbccddeeff', 'firmware': '0.2.0'},
+          'result': switch (value['method']) {
+            'config.get' => configJson(),
+            'config.secrets.get' => {
+              'v': 1,
+              'wifi': {'password': 'SavedWifiOnly123'},
+              'mqtt': {'password': ''},
+              'admin_password': 'ExampleAdminTokenOnly0000',
+            },
+            _ => {'v': 1, 'device_id': 'aabbccddeeff', 'firmware': '0.2.0'},
+          },
         }),
       );
     }

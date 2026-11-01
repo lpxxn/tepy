@@ -109,6 +109,7 @@ esp_err_t WebServer::handle(httpd_req_t *req) {
         return error(req, "unauthorized", "401 Unauthorized");
     const auto dispatch = [&](std::string_view method, std::string_view params = "{}") {
         auto result = management_.dispatch(method, params);
+        Wipe wipe{result};
         auto parsed = parse_json(result);
         const auto issue = text(field(parsed.get(), "error"));
         const char *status = issue.empty()                                  ? "200 OK"
@@ -121,6 +122,8 @@ esp_err_t WebServer::handle(httpd_req_t *req) {
             return dispatch("status.get");
         if (path == "/api/v1/config")
             return dispatch("config.get");
+        if (path == "/api/v1/config/secrets")
+            return dispatch("config.secrets.get");
         if (path == "/api/v1/wifi/scan")
             return dispatch("wifi.scan");
     }

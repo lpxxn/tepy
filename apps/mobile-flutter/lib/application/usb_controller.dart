@@ -238,6 +238,27 @@ class UsbController extends Notifier<UsbState> {
     _alive(epoch);
     state = state.copyWith(config: result, message: '已重新读取脱敏配置。');
   });
+
+  /// 仅在用户点显示时读取；原文直接交给当前输入框，不进入 Provider 状态或本机存储。
+  Future<String> readSecret(String group) async {
+    if (!{'wifi', 'mqtt'}.contains(group) || !state.connected || state.busy) {
+      throw const AppFailure('设备未连接或正在处理请求。');
+    }
+    String? value;
+    await _run(() async {
+      final epoch = _epoch;
+      final result = await _client.request('config.secrets.get');
+      _alive(epoch);
+      final secret = object(result[group])?['password'];
+      if (result['v'] != 1 || secret is! String) {
+        throw const AppFailure('设备不支持读取已保存口令，请更新固件。');
+      }
+      value = secret;
+    });
+    if (value == null) throw const AppFailure('未能读取已保存口令。');
+    return value!;
+  }
+
   Future<void> saveConfig(Map<String, Object> patch) async {
     try {
       await _run(() async {

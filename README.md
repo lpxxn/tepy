@@ -17,6 +17,7 @@ ESP32-S3 上的 MQTT → BLE 键盘桥接器，使用 ESP-IDF 6.1 / C++23。目�
 ## 从这里开始
 
 - [环境、构建与首次使用](docs/getting-started.md)
+- [各项目打包、dist 目录与版本号维护](docs/releases.md)
 - [架构与目录约定](docs/architecture.md)
 - [配置与恢复](docs/configuration.md)
 - [MQTT / HTTP 协议](docs/protocol.md)

@@ -1,7 +1,7 @@
 name: tepy_mobile
 description: "Tepy Android / Windows 控制台：Mac 状态、MQTT 唤醒和键盘操作，含中文学习注释。"
 publish_to: 'none'
-version: 0.2.0+5
+version: 0.2.0+6
 
 environment:
   sdk: ^3.13.7

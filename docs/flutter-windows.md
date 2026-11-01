@@ -44,6 +44,8 @@ flutter build windows --release --target lib/main.dart
 
 Windows Release 输出为 `build/windows/x64/runner/Release/tepy.exe`，发布目录为 `dist/flutter-windows/0.2.0/`。Android 构建仍使用 `tools/dev/mobile.ps1`，两者独立。
 
+Android / Windows 共用 `pubspec.yaml` 的版本。发布脚本只取 `+` 前的版本生成目录和 ZIP 名称；只增加构建号仍写入同一目录。完整的版本维护、覆盖行为和各项目发布路径见 [构建、发布目录与版本号](releases.md)。
+
 原生集成测试（测试自身不读取或覆盖保存的连接档案）：
 
 ```powershell

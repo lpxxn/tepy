@@ -39,7 +39,7 @@ KeyboardPage::KeyboardPage(QWidget *parent) : QWidget(parent), mqtt_(this), job_
     fields->addLayout(row);
     username_ = line("mqttUsername", QStringLiteral("无需认证时留空"));
     password_ = line("mqttPassword", QStringLiteral("由系统凭据库记住"));
-    password_->setEchoMode(QLineEdit::Password);
+    ui::passwordToggle(password_);
     auto *credentials = new QHBoxLayout;
     credentials->addWidget(ui::field(QStringLiteral("用户名"), username_, connectionFields_), 1);
     credentials->addWidget(ui::field(QStringLiteral("Broker 密码"), password_, connectionFields_),
@@ -134,10 +134,10 @@ KeyboardPage::KeyboardPage(QWidget *parent) : QWidget(parent), mqtt_(this), job_
     input_ = new QLineEdit(actionFields_);
     input_->setObjectName(QStringLiteral("keyboardInput"));
     input_->setMaxLength(512);
-    input_->setEchoMode(QLineEdit::Password);
+    ui::passwordToggle(input_);
     input_->setPlaceholderText(QStringLiteral("仅支持美式 ABC 布局的可打印 ASCII，结束后清空"));
     inputRow_ =
-        ui::field(QStringLiteral("输入内容（隐藏，本次使用后清理）"), input_, actionFields_);
+        ui::field(QStringLiteral("输入内容（本次使用后清理）"), input_, actionFields_);
     form->addWidget(inputRow_);
     keyRow_ = new QWidget(actionFields_);
     auto *keys = new QHBoxLayout(keyRow_);
@@ -216,7 +216,10 @@ KeyboardPage::KeyboardPage(QWidget *parent) : QWidget(parent), mqtt_(this), job_
     connect(disconnect_, &QPushButton::clicked, &mqtt_, &MqttControl::stop);
     connect(&mqtt_, &MqttControl::changed, this, &KeyboardPage::refresh);
     connect(&mqtt_, &MqttControl::activeChanged, this, [this, connectionToggle](bool active) {
-        connectionFields_->setEnabled(!active);
+        for (auto *editor : {broker_, username_, password_, deviceID_, agentID_, ca_, cert_, keyFile_})
+            editor->setReadOnly(active);
+        for (auto *button : connectionFields_->findChildren<QPushButton *>())
+            button->setEnabled(!active);
         connect_->setEnabled(!active);
         disconnect_->setEnabled(active);
         connectionToggle->setChecked(!active);

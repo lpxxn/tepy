@@ -114,6 +114,7 @@ final class SerialManagement {
     if (!{
       'status.get',
       'config.get',
+      'config.secrets.get',
       'config.patch',
       'wifi.scan',
       'ble.pair',

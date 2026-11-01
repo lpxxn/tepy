@@ -83,5 +83,20 @@ int main() {
     auto broken = parse_json(serial::reply(valid, authenticate, [](auto, auto) { return "[]"; }));
     check(text(field(broken.get(), "error")) == "internal_error",
           "invalid service response rejected");
+    const std::string reveal_request =
+        R"({"v":1,"id":"reveal-1","method":"config.secrets.get","token":"ExampleAdminTokenOnly0000","params":{}})";
+    unsigned reveals = 0;
+    const auto reveal = [&](std::string_view method, std::string_view) {
+        ++reveals;
+        check(method == "config.secrets.get", "explicit secrets method forwarded");
+        return R"({"v":1,"wifi":{"password":"SavedWifiOnly123"},"mqtt":{"password":""},"admin_password":"ExampleAdminTokenOnly0000"})";
+    };
+    auto secrets = serial::reply(reveal_request, authenticate, reveal);
+    check(reveals == 1 && secrets.find("SavedWifiOnly123") != std::string::npos,
+          "authenticated explicit reveal returns saved secret");
+    auto denied = parse_json(serial::reply(reveal_request, [](auto) { return false; }, reveal));
+    check(reveals == 1 && text(field(denied.get(), "error")) == "unauthorized" &&
+              !field(denied.get(), "result"),
+          "unauthenticated reveal never dispatched");
     std::cout << "PASS: " << checks << " serial protocol checks\n";
 }

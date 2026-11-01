@@ -119,6 +119,8 @@ apps/desktop-qt/
 
 脚本默认路径对应本机安装，可通过 `-QtPath` 和 `-CompilerPath` 修改。Qt Creator 直接打开该目录的 `CMakeLists.txt` 并选择已安装 SerialPort 的 Kit。
 
+带版本目录需通过 `-PackageDirectory .\dist\tepy-desktop-0.3.0` 指定；脚本不自动读取版本生成目录名，也不生成 ZIP。CMake、应用版本和侧栏文字需同步维护，具体位置及归档命令见 [构建、发布目录与版本号](releases.md)。
+
 其他平台可独立构建：
 
 ```sh

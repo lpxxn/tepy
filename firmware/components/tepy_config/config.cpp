@@ -173,6 +173,17 @@ std::string ConfigStore::public_json() const {
     std::lock_guard lock(mutex_);
     return encode(config_, true);
 }
+std::string ConfigStore::secrets_json() const {
+    std::lock_guard lock(mutex_);
+    auto root = object();
+    cJSON_AddNumberToObject(root.get(), "v", 1);
+    auto *wifi = cJSON_AddObjectToObject(root.get(), "wifi");
+    auto *mqtt = cJSON_AddObjectToObject(root.get(), "mqtt");
+    cJSON_AddStringToObject(wifi, "password", config_.wifi_password.c_str());
+    cJSON_AddStringToObject(mqtt, "password", config_.mqtt_password.c_str());
+    cJSON_AddStringToObject(root.get(), "admin_password", config_.admin_password.c_str());
+    return stringify(root.get());
+}
 std::string_view ConfigStore::patch(std::string_view input) {
     if (input.size() > 16384)
         return "invalid_config";

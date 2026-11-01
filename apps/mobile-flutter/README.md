@@ -4,6 +4,7 @@ Flutter / Dart / Riverpod 编写的 Android / Windows 控制台。通过 MQTT �
 
 - [安装、连接与 USB 使用](../../docs/mobile-flutter.md)
 - [Windows 使用与构建](../../docs/flutter-windows.md)
+- [各项目打包、dist 目录与版本号维护](../../docs/releases.md)
 - [Flutter / Dart 学习导读](../../docs/flutter-learning.md)
 - [协议](../../docs/protocol.md) · [测试记录](../../docs/testing.md)
 

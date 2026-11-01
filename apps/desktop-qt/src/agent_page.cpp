@@ -21,7 +21,7 @@ AgentPage::AgentPage(QWidget *parent) : QWidget(parent), client_(this) {
     address_->setPlaceholderText(QStringLiteral("http://192.168.50.246:18765"));
     token_ = new QLineEdit(connection.widget);
     token_->setObjectName(QStringLiteral("macAgentToken"));
-    token_->setEchoMode(QLineEdit::Password);
+    ui::passwordToggle(token_);
     token_->setMaxLength(128);
     token_->setPlaceholderText(QStringLiteral("Go 服务 TOML 的 http.token"));
     auto *fields = new QHBoxLayout;
@@ -115,7 +115,7 @@ AgentPage::AgentPage(QWidget *parent) : QWidget(parent), client_(this) {
     connect(disconnect_, &QPushButton::clicked, &client_, &AgentClient::stop);
     connect(&client_, &AgentClient::activeChanged, this, [this](bool active) {
         address_->setEnabled(!active);
-        token_->setEnabled(!active);
+        token_->setReadOnly(active);
         connect_->setEnabled(!active);
         disconnect_->setEnabled(active);
         if (!active) {

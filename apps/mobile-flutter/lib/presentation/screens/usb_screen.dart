@@ -9,6 +9,7 @@ import '../../domain/connection_profile.dart';
 import '../../domain/serial_management.dart';
 import '../../domain/snapshots.dart';
 import '../widgets/common.dart';
+import '../widgets/secret_text_field.dart';
 
 /// USB 配置是独立页面；使用 TextEditingController 保留草稿。
 /// Wi-Fi/MQTT 新密码仅用于一次 PATCH，不写入手机连接档案。
@@ -153,7 +154,6 @@ class _UsbScreenState extends ConsumerState<UsbScreen>
       TextEditingController text,
       String label,
       String key, {
-      bool secret = false,
       int lines = 1,
     }) => Padding(
       padding: const EdgeInsets.only(bottom: 14),
@@ -161,7 +161,6 @@ class _UsbScreenState extends ConsumerState<UsbScreen>
         key: Key(key),
         controller: text,
         enabled: editable,
-        obscureText: secret,
         autocorrect: false,
         enableSuggestions: false,
         enableIMEPersonalizedLearning: false,
@@ -249,15 +248,12 @@ class _UsbScreenState extends ConsumerState<UsbScreen>
                 label: const Text('刷新 USB 设备'),
               ),
               const SizedBox(height: 12),
-              TextField(
-                key: const Key('usbAdminToken'),
+              SecretTextField(
+                inputKey: const Key('usbAdminToken'),
                 controller: _token,
-                obscureText: true,
-                autocorrect: false,
-                enableSuggestions: false,
-                enableIMEPersonalizedLearning: false,
                 maxLength: 64,
-                enabled: !state.connected && !state.busy,
+                enabled: !state.busy,
+                readOnly: state.connected,
                 decoration: const InputDecoration(labelText: 'ESP32 管理口令'),
               ),
               CheckboxListTile(
@@ -358,22 +354,56 @@ class _UsbScreenState extends ConsumerState<UsbScreen>
             children: [
               field(_ssid, 'Wi-Fi SSID', 'usbSsid'),
               policy(true),
-              if (_wifiPolicy == PasswordPolicy.replace)
-                field(
-                  _wifiPassword,
-                  'Wi-Fi 新密码',
-                  'usbWifiPassword',
-                  secret: true,
+              if (_wifiPolicy != PasswordPolicy.clear)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 14),
+                  child: SecretTextField(
+                    key: ValueKey('wifi-${_wifiPolicy.name}'),
+                    inputKey: const Key('usbWifiPassword'),
+                    controller: _wifiPassword,
+                    enabled: editable,
+                    readOnly: _wifiPolicy == PasswordPolicy.keep,
+                    saved:
+                        _wifiPolicy == PasswordPolicy.keep &&
+                        object(state.config?['wifi'])?['password_set'] == true,
+                    onReveal: () => controller.readSecret('wifi'),
+                    onChanged: (_) => _dirty = true,
+                    decoration: InputDecoration(
+                      labelText: _wifiPolicy == PasswordPolicy.keep
+                          ? 'Wi-Fi 已保存密码'
+                          : 'Wi-Fi 新密码',
+                      hintText: _wifiPolicy == PasswordPolicy.keep
+                          ? '尚未设置'
+                          : null,
+                    ),
+                  ),
                 ),
               field(_mqttUri, 'ESP32 的 MQTT 地址', 'usbMqttUri'),
               field(_mqttUser, 'MQTT 用户名', 'usbMqttUser'),
               policy(false),
-              if (_mqttPolicy == PasswordPolicy.replace)
-                field(
-                  _mqttPassword,
-                  'MQTT 新密码',
-                  'usbMqttPassword',
-                  secret: true,
+              if (_mqttPolicy != PasswordPolicy.clear)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 14),
+                  child: SecretTextField(
+                    key: ValueKey('mqtt-${_mqttPolicy.name}'),
+                    inputKey: const Key('usbMqttPassword'),
+                    controller: _mqttPassword,
+                    enabled: editable,
+                    readOnly: _mqttPolicy == PasswordPolicy.keep,
+                    saved:
+                        _mqttPolicy == PasswordPolicy.keep &&
+                        object(state.config?['mqtt'])?['password_set'] == true,
+                    onReveal: () => controller.readSecret('mqtt'),
+                    onChanged: (_) => _dirty = true,
+                    decoration: InputDecoration(
+                      labelText: _mqttPolicy == PasswordPolicy.keep
+                          ? 'MQTT 已保存密码'
+                          : 'MQTT 新密码',
+                      hintText: _mqttPolicy == PasswordPolicy.keep
+                          ? '尚未设置'
+                          : null,
+                    ),
+                  ),
                 ),
               field(_ca, 'CA PEM（空时使用固件证书包）', 'usbCa', lines: 3),
               field(_ntp, 'NTP 服务器', 'usbNtp'),
@@ -426,9 +456,8 @@ class _UsbScreenState extends ConsumerState<UsbScreen>
                 child: const Text('开启 120 秒配对窗口'),
               ),
               const SizedBox(height: 12),
-              TextField(
+              SecretTextField(
                 controller: _passkey,
-                obscureText: true,
                 maxLength: 6,
                 keyboardType: TextInputType.number,
                 enabled: state.connected && !state.busy,

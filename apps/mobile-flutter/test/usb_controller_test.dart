@@ -10,6 +10,34 @@ import 'support/fakes.dart';
 
 void main() {
   test(
+    'saved secrets are requested explicitly and stay outside shared state',
+    () async {
+      final usb = FakeUsb();
+      final container = ProviderContainer(
+        overrides: [
+          usbTransportFactoryProvider.overrideWithValue(() => usb),
+          usbTokenStoreProvider.overrideWithValue(FakeUsbTokenStore()),
+        ],
+      );
+      addTearDown(container.dispose);
+      final controller = container.read(usbProvider.notifier);
+      await controller.connect('1:0', 'ExampleAdminTokenOnly0000');
+      expect(usb.sent.any((s) => s['method'] == 'config.secrets.get'), false);
+      expect(await controller.readSecret('wifi'), 'SavedWifiOnly123');
+      expect(usb.sent.last['method'], 'config.secrets.get');
+      expect(usb.sent.last['token'], 'ExampleAdminTokenOnly0000');
+      expect(
+        container.read(usbProvider).config!['wifi'],
+        isNot(contains('password')),
+      );
+      await controller.disconnect();
+      await expectLater(
+        controller.readSecret('wifi'),
+        throwsA(isA<Exception>()),
+      );
+    },
+  );
+  test(
     'USB authenticates before reading configuration; saves then reads back',
     () async {
       final usb = FakeUsb(), tokens = FakeUsbTokenStore();

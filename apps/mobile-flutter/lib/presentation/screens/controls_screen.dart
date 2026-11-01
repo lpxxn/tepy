@@ -10,6 +10,7 @@ import '../../application/session_state.dart';
 import '../../app/tepy_app.dart';
 import '../../domain/commands.dart';
 import '../widgets/common.dart';
+import '../widgets/secret_text_field.dart';
 
 class ControlsScreen extends ConsumerWidget {
   const ControlsScreen({super.key, required this.onConnect});
@@ -272,15 +273,10 @@ class _InputDialogState extends State<_InputDialog>
             style: const TextStyle(fontSize: 13, color: Colors.blueGrey),
           ),
           const SizedBox(height: 18),
-          TextField(
-            key: const Key('actionInput'),
+          SecretTextField(
+            inputKey: const Key('actionInput'),
             controller: _text,
-            obscureText: true,
             maxLength: 512,
-            autocorrect: false,
-            enableSuggestions: false,
-            enableIMEPersonalizedLearning: false,
-            keyboardType: TextInputType.visiblePassword,
             decoration: InputDecoration(
               labelText: widget.unlock ? '本次 Mac 密码' : '本次输入内容',
             ),

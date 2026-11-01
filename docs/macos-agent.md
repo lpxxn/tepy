@@ -201,4 +201,6 @@ apps/macos-agent/
 
 Windows 运行 `tools/dev/agent.ps1` 做 Go 测试／vet 和开发工具构建；`-Go` 可指定 go.exe。原生 Mac 程序必须在 Mac 上执行 `sh tools/build-macos.sh` 构建；禁止将不含 CGo 的交叉编译 stub 当作可运行服务，run/install 会检查原生支持。
 
+应用版本在 `cmd/tepy-agent/main.go` 的 `var version` 中维护，与 TOML 配置格式版本独立。Mac 构建脚本只生成 `build/tepy-agent`，不会自动整理 `dist/` 或生成 ZIP；发布目录、架构命名与校验清单整理见 [构建、发布目录与版本号](releases.md)。
+
 本轮已执行 Windows Go 测试、目标 Mac 原生 race/vet、真实 Broker 心跳订阅和 Qt 到 Mac 的只读请求。用户手动锁屏／解锁后，实际观察到 locked → unlocked。完整睡眠／唤醒、TLS Broker／mTLS 实机部署、其他 macOS 版本和用户切换仍需专项验证，详见 [测试记录](testing.md)。
