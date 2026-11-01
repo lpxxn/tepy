@@ -6,6 +6,8 @@
 
 已在用户授权的 Mac 安装。2026-10-31 用户确认当前地址为 `192.168.50.246`，MQTT Broker 为 `mqtt://192.168.50.99:1883`。本次按用户明确授权，将 HTTP 状态接口绑定为 `0.0.0.0:18765`；源码初始配置仍默认 `127.0.0.1:18765`。
 
+2026-11-01 指定的新 MQTT 地址为 `39.97.238.102`，修改与重启步骤见下文[修改 MQTT 地址与重启](#修改-mqtt-地址与重启)。是否已切换成功，以 Mac 重启服务后的连接状态为准。
+
 实际配置在 Mac：
 
 ```text
@@ -108,6 +110,57 @@ client_key_file = "certs/client.key"
 ```
 
 证书路径相对于 TOML 所在目录，也接受绝对路径。CA 留空使用系统信任库；客户端证书和私钥须成对配置。启用证书时必须使用 mqtts://，不会在明文 URL 下静默忽略证书。TLS 至少 1.2，保留服务端证书和主机名校验，没有跳过校验的开关。修改配置后重新 install 使其生效。
+
+## 修改 MQTT 地址与重启
+
+已安装的服务修改 Mac 上的运行配置即可，无需修改 Go 源码或重新编译。以下使用 `39.97.238.102`，按普通 MQTT、端口 `1883` 举例；实际协议、端口和认证信息以新 Broker 的配置为准。
+
+1. 在 Mac 终端打开运行配置：
+
+   ```sh
+   nano "$HOME/Library/Application Support/Tepy/agent.toml"
+   ```
+
+   找到已有的 `[mqtt]` 段，将其中的 `url` 改为下面的值，不要重复添加 `[mqtt]` 段：
+
+   ```toml
+   [mqtt]
+   url = "mqtt://39.97.238.102:1883"
+   ```
+
+   新 Broker 如果需要认证，同步修改该段中的 `username`、`password`。如果启用 TLS，使用新 Broker 对应的 `mqtts://` 地址、端口和证书配置。按 `Ctrl+O`、回车保存，再按 `Ctrl+X` 退出。
+
+2. 校验配置：
+
+   ```sh
+   "$HOME/Library/Application Support/Tepy/bin/tepy-agent" validate
+   ```
+
+   显示 `Configuration valid` 后，再执行下面的重启步骤。校验失败时先按错误提示修正配置；此命令只校验配置和证书文件，不验证 Broker 是否能连接。
+
+3. 使用已安装的程序重启后台服务：
+
+   ```sh
+   "$HOME/Library/Application Support/Tepy/bin/tepy-agent" install
+   ```
+
+   `install` 会停止旧的 LaunchAgent 并重新安装、启动服务，读取修改后的配置，保留现有配置文件。使用当前已登录的普通 Mac 用户执行，不加 `sudo`。
+
+4. 等几秒后查看连接状态：
+
+   ```sh
+   "$HOME/Library/Application Support/Tepy/bin/tepy-agent" status
+   ```
+
+   返回 JSON 中的 `mqtt.configured` 和 `mqtt.connected` 均为 `true` 表示 MQTT 已配置并已连接。如果尚未连接，查看日志：
+
+   ```sh
+   tail -n 50 "$HOME/Library/Logs/Tepy/agent.log"
+   ```
+
+   结合日志检查 Mac 到 Broker 的网络连通性、端口、认证和主题发布权限。
+
+如果整个 Tepy 系统迁移到新 Broker，ESP32、Qt、Flutter 和 Python CLI 使用的 MQTT 地址也需要同步修改，才能继续交换设备命令和状态。Mac 的 HTTP 状态接口地址由 `[http].listen` 单独配置。仓库中被忽略的 `apps/macos-agent/agent.local.toml` 只是本地副本；如需保持一致，应另外同步，修改它不会自动更新 Mac 上的运行配置。
 
 ## 状态含义与边界
 
