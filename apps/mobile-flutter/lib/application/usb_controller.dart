@@ -7,6 +7,7 @@ import '../data/usb_transport.dart';
 import '../domain/connection_profile.dart';
 import '../domain/serial_management.dart';
 import '../domain/snapshots.dart';
+import 'providers.dart';
 
 /// USB 与 MQTT 是独立连接；没有 Wi-Fi 也能经 USB 管理 ESP32。
 final usbTransportFactoryProvider = Provider<UsbTransport Function()>(
@@ -137,6 +138,13 @@ class UsbController extends Notifier<UsbState> {
   /// _run 是统一的前台互斥入口。15 秒超时由 SerialManagement 处理，绝不重发写操作。
   Future<void> _run(Future<void> Function() work) async {
     if (_disposed || state.busy) return;
+    if (ref.read(sessionProvider).maintenance) {
+      state = state.copyWith(
+        message: '固件升级期间暂停 USB 管理，请等待版本确认。',
+        isError: true,
+      );
+      return;
+    }
     final epoch = _epoch;
     state = state.copyWith(busy: true, isError: false);
     try {

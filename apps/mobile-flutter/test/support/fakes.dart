@@ -9,6 +9,9 @@ import 'package:tepy_mobile/application/usb_controller.dart';
 import 'package:tepy_mobile/data/connection_store.dart';
 import 'package:tepy_mobile/data/mqtt_transport.dart';
 import 'package:tepy_mobile/data/usb_transport.dart';
+import 'package:tepy_mobile/data/mac_password_store.dart';
+import 'package:tepy_mobile/data/firmware_client.dart';
+import 'package:tepy_mobile/domain/firmware_image.dart';
 import 'package:tepy_mobile/domain/connection_profile.dart';
 import 'package:tepy_mobile/domain/snapshots.dart';
 
@@ -309,4 +312,111 @@ final class FakeUsbTokenStore implements UsbTokenStore {
   Future<void> forget() async {
     value = '';
   }
+}
+
+Map<String, dynamic> diagnosticJson(
+  AppClock clock, {
+  String session = 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+}) => {
+  'v': 1,
+  'agent_id': 'mac-test',
+  'agent_version': '0.2.0',
+  'session': session,
+  'source': 'live',
+  'observed_at': clock.nowMs,
+  'valid_until': clock.nowMs + 30000,
+  'status': 'ok',
+  'checks': [
+    {
+      'component': 'agent',
+      'status': 'ok',
+      'code': 'agent_state_fresh',
+      'message': '服务采样正常。',
+    },
+  ],
+};
+Map<String, dynamic> historyJson(
+  AppClock clock, {
+  String session = 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+  int count = 3,
+}) => {
+  'v': 1,
+  'agent_id': 'mac-test',
+  'session': session,
+  'observed_at': clock.nowMs,
+  'capacity': 200,
+  'oldest_sequence': count == 0 ? 0 : 1,
+  'latest_sequence': count,
+  'next_after': count,
+  'truncated': false,
+  'has_more': false,
+  'events': [
+    for (var i = 1; i <= count; i++)
+      {
+        'sequence': i,
+        'at': clock.nowMs - i * 1000,
+        'kind': i % 2 == 0 ? 'screen_unlocked' : 'screen_locked',
+        'from': 'unknown',
+        'to': i % 2 == 0 ? 'unlocked' : 'locked',
+        'code': '',
+      },
+  ],
+};
+
+final class FakeMacPasswords implements MacPasswordStore {
+  final values = <String, (String, MacPasswordInfo)>{};
+  Completer<void>? readGate;
+  Uint8List? returned;
+  int reads = 0, saves = 0;
+  @override
+  Future<String> location() async => '/example-app-data/mac-passwords.json';
+  @override
+  Future<MacPasswordInfo?> inspect(ConnectionProfile p) async =>
+      values[macPasswordTarget(p)]?.$2;
+  @override
+  Future<Uint8List?> read(ConnectionProfile p) async {
+    reads++;
+    await readGate?.future;
+    final value = values[macPasswordTarget(p)];
+    return returned = value == null
+        ? null
+        : Uint8List.fromList(utf8.encode(value.$1));
+  }
+
+  @override
+  Future<void> save(
+    ConnectionProfile p,
+    Uint8List b,
+    MacPasswordInfo options,
+  ) async {
+    values[macPasswordTarget(p)] = (ascii.decode(b), options);
+    saves++;
+  }
+
+  @override
+  Future<void> remove(ConnectionProfile p) async {
+    values.remove(macPasswordTarget(p));
+  }
+}
+
+final class FakeFirmwareStore implements FirmwareTargetStore {
+  FirmwareTarget? target;
+  @override
+  Future<FirmwareTarget?> load() async => target;
+  @override
+  Future<void> save(FirmwareTarget t) async {
+    target = t;
+  }
+
+  @override
+  Future<void> clear() async {
+    target = null;
+  }
+}
+
+final class FakeFirmwarePicker implements FirmwarePicker {
+  FakeFirmwarePicker([this.image]);
+  FirmwareImage? image;
+  @override
+  Future<FirmwareImage?> pick() async => image;
 }

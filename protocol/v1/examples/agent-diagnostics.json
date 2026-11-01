@@ -1,0 +1,48 @@
+{
+  "v": 1,
+  "agent_id": "mac-example",
+  "agent_version": "0.2.0",
+  "session": "0123456789abcdef0123456789abcdef",
+  "source": "live",
+  "observed_at": 1793494800000,
+  "valid_until": 1793494830000,
+  "status": "warning",
+  "checks": [
+    {
+      "component": "agent",
+      "status": "ok",
+      "code": "agent_state_fresh",
+      "message": "服务采样仍在有效期内。"
+    },
+    {
+      "component": "mqtt",
+      "status": "ok",
+      "code": "mqtt_connected",
+      "message": "MQTT 已连接。"
+    },
+    {
+      "component": "user_session",
+      "status": "ok",
+      "code": "gui_session_active",
+      "message": "当前 GUI 用户位于控制台且登录完成。"
+    },
+    {
+      "component": "screen_lock",
+      "status": "warning",
+      "code": "screen_lock_unknown",
+      "message": "暂时无法确认锁定状态，等待原生采样或锁定事件。"
+    },
+    {
+      "component": "hid",
+      "status": "ok",
+      "code": "hid_registered",
+      "message": "已找到目标 Tepy HID 键盘。"
+    },
+    {
+      "component": "power",
+      "status": "ok",
+      "code": "power_monitor_ready",
+      "message": "原生电源事件监听正在运行。"
+    }
+  ]
+}

@@ -85,6 +85,10 @@ void main() {
         ),
       );
       await connected.timeout(const Duration(seconds: 2));
+      // 主连接只等待必要主题；可选观察主题的 SUBACK 可能稍晚到达。
+      for (var i = 0; broker.topics.length < 6 && i < 100; i++) {
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+      }
       expect(broker.connectBody[6], 4); // MQTT 协议级别 4 = 3.1.1。
       expect(broker.connectBody[7] & 2, 2); // clean session。
       expect(broker.connectBody[7] & 0xc0, 0xc0); // 用户名、密码标志。
@@ -93,6 +97,8 @@ void main() {
         'tepy/aabbccddeeff/reply',
         'tepy/macos/mac-test/state',
         'tepy/macos/mac-test/availability',
+        'tepy/macos/mac-test/diagnostics',
+        'tepy/macos/mac-test/events',
       });
       final received = client.events.where((e) => e is BrokerMessage).first;
       broker.publish('tepy/aabbccddeeff/state', '{"v":1}', retained: true);
@@ -115,6 +121,34 @@ void main() {
       expect(events.whereType<BrokerConnected>(), hasLength(1));
     },
   );
+  test('optional diagnostics ACL rejection leaves control connected', () async {
+    final broker = await _WireBroker.start();
+    broker.denyObservations = true;
+    final client = DartMqttTransport();
+    final events = <BrokerEvent>[];
+    final sub = client.events.listen(events.add);
+    addTearDown(() async {
+      await client.dispose();
+      await sub.cancel();
+      await broker.dispose();
+    });
+    await client.connect(
+      ConnectionProfile(
+        broker: 'mqtt://127.0.0.1:${broker.server.port}',
+        deviceId: testProfile.deviceId,
+        agentId: testProfile.agentId,
+      ),
+    );
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+    expect(events.whereType<BrokerConnected>(), hasLength(1));
+    expect(events.whereType<BrokerObservationDenied>(), isNotEmpty);
+    final received = client.events.where((e) => e is BrokerMessage).first;
+    broker.publish('${testProfile.devicePrefix}/state', '{"v":1}');
+    expect(
+      await received.timeout(const Duration(seconds: 2)),
+      isA<BrokerMessage>(),
+    );
+  });
 }
 
 final class _WireBroker {
@@ -136,6 +170,7 @@ final class _WireBroker {
   List<int> connectBody = [];
   int lastPublishHeader = 0;
   String lastPublishTopic = '', lastPublishBody = '';
+  bool denyObservations = false;
   int connections = 0;
 
   void _bytes(Uint8List bytes) {
@@ -166,7 +201,13 @@ final class _WireBroker {
             topics.add(utf8.decode(body.sublist(index, index + length)));
             index += length;
             expect(body[index++], 1);
-            granted.add(1);
+            granted.add(
+              denyObservations &&
+                      (topics.last.endsWith('/diagnostics') ||
+                          topics.last.endsWith('/events'))
+                  ? 0x80
+                  : 1,
+            );
           }
           _socket!.add([
             0x90,

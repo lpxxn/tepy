@@ -18,6 +18,10 @@ final class BrokerConnected extends BrokerEvent {
   const BrokerConnected();
 }
 
+final class BrokerObservationDenied extends BrokerEvent {
+  const BrokerObservationDenied();
+}
+
 final class BrokerDisconnected extends BrokerEvent {
   const BrokerDisconnected();
 }
@@ -126,7 +130,8 @@ final class DartMqttTransport implements BrokerTransport {
         for (final update in batch) {
           final message = update.payload;
           if (message is! MqttPublishMessage ||
-              message.payload.message.length > 16384) {
+              message.payload.message.length >
+                  (update.topic.endsWith('/events') ? 65536 : 16384)) {
             continue;
           }
           _events.add(
@@ -150,17 +155,29 @@ final class DartMqttTransport implements BrokerTransport {
       final gate = Completer<void>();
       _subscriptionGate = gate;
       client.onSubscribed = (topic) {
+        if (!identical(_client, client) || _disposed) return;
         acknowledged.add(topic);
         if (acknowledged.containsAll(topics) && !gate.isCompleted) {
           gate.complete();
         }
       };
-      client.onSubscribeFail = (_) {
+      client.onSubscribeFail = (topic) {
+        if (!identical(_client, client) || _disposed) return;
+        if (!topics.contains(topic)) {
+          _events.add(const BrokerObservationDenied());
+          return;
+        }
         if (!gate.isCompleted) {
           gate.completeError(const AppFailure('Broker 拒绝订阅，请检查 ACL。'));
         }
       };
-      for (final topic in topics) {
+      final optional = profile.agentId.isEmpty
+          ? <String>{}
+          : {
+              '${profile.agentPrefix}/diagnostics',
+              '${profile.agentPrefix}/events',
+            };
+      for (final topic in {...topics, ...optional}) {
         client.subscribe(topic, MqttQos.atLeastOnce);
       }
       await gate.future.timeout(const Duration(seconds: 6));

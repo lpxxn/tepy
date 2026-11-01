@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -14,11 +15,12 @@ import (
 )
 
 type wireBroker struct {
-	listener net.Listener
-	incoming chan packets.ControlPacket
-	mu       sync.Mutex
-	clients  []net.Conn
-	workers  sync.WaitGroup
+	listener    net.Listener
+	incoming    chan packets.ControlPacket
+	mu          sync.Mutex
+	clients     []net.Conn
+	workers     sync.WaitGroup
+	connackCode atomic.Uint32
 }
 
 func newBroker(t *testing.T) *wireBroker {
@@ -69,6 +71,7 @@ func (b *wireBroker) serve(c net.Conn) {
 		switch p := packet.(type) {
 		case *packets.ConnectPacket:
 			ack := packets.NewControlPacket(packets.Connack).(*packets.ConnackPacket)
+			ack.ReturnCode = byte(b.connackCode.Load())
 			_ = ack.Write(c)
 		case *packets.PublishPacket:
 			if p.Qos == 1 {
@@ -169,4 +172,108 @@ func TestExpiredStateIsNotPublished(t *testing.T) {
 	}
 	cancel()
 	<-done
+}
+
+func TestDiagnosticAndHistoryTopicsPreserveStateAndReplayLatestHistory(t *testing.T) {
+	b := newBroker(t)
+	c := config.Default()
+	c.AgentID = "mac-test"
+	c.MQTT.URL = "mqtt://" + b.listener.Addr().String()
+	transport, _ := New(c)
+	journal := model.NewJournal(c.AgentID, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
+	journal.Append("agent_started", "", "running", "", 1)
+	transport.SetEventSource(func() model.EventPage { p, _ := journal.Read(nil, 200, ""); return p })
+	transport.Observe(func(previous, current model.ConnectionStatus) {
+		if current.Connected {
+			journal.Append("mqtt_connected", "disconnected", "connected", "", 2)
+		}
+	})
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		transport.Run(ctx, func() model.State {
+			state := model.State{V: 1, AgentID: c.AgentID, AgentVersion: "test", Session: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", ObservedAt: time.Now().UnixMilli(), ValidUntil: time.Now().Add(time.Minute).UnixMilli()}
+			state.MQTT.Configured = true
+			return state
+		})
+	}()
+	topics := map[string][]byte{}
+	for len(topics) < 4 {
+		if packet, ok := take(t, b).(*packets.PublishPacket); ok {
+			if packet.Qos != 1 || !packet.Retain {
+				t.Fatal("wrong delivery flags")
+			}
+			topics[packet.TopicName] = packet.Payload
+		}
+	}
+	var events model.EventPage
+	if json.Unmarshal(topics[transport.Topic("events")], &events) != nil || events.LatestSequence != 2 || len(events.Events) != 2 {
+		t.Fatal(events)
+	}
+	var report model.DiagnosticReport
+	if json.Unmarshal(topics[transport.Topic("diagnostics")], &report) != nil || report.Source != "live" || report.Checks[1].Code != "mqtt_connected" {
+		t.Fatal(report)
+	}
+	var state map[string]any
+	if json.Unmarshal(topics[transport.Topic("state")], &state) != nil || len(state["mqtt"].(map[string]any)) != 2 {
+		t.Fatal("old nested state shape changed")
+	}
+	journal.Append("did_wake", "sleeping", "awake", "", 3)
+	transport.Notify()
+	for {
+		if packet, ok := take(t, b).(*packets.PublishPacket); ok && packet.TopicName == transport.Topic("events") {
+			if json.Unmarshal(packet.Payload, &events) != nil || events.LatestSequence != 3 {
+				t.Fatal("history did not advance")
+			}
+			break
+		}
+	}
+	cancel()
+	select {
+	case <-done:
+	case <-time.After(3 * time.Second):
+		t.Fatal("shutdown blocked")
+	}
+}
+func TestMQTTBadCredentialsBecomeFixedDiagnosticCode(t *testing.T) {
+	b := newBroker(t)
+	b.connackCode.Store(4)
+	c := config.Default()
+	c.AgentID = "mac-test"
+	c.MQTT.URL = "mqtt://" + b.listener.Addr().String()
+	transport, _ := New(c)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	done := make(chan struct{})
+	go func() { defer close(done); transport.Run(ctx, func() model.State { return model.State{} }) }()
+	_ = take(t, b)
+	deadline := time.Now().Add(time.Second)
+	for time.Now().Before(deadline) && transport.Status().ErrorCode == "" {
+		time.Sleep(time.Millisecond)
+	}
+	if transport.Status().ErrorCode != "mqtt_bad_credentials" || transport.Connected() {
+		t.Fatal(transport.Status())
+	}
+	b.connackCode.Store(5)
+	_ = take(t, b)
+	deadline = time.Now().Add(time.Second)
+	for time.Now().Before(deadline) && transport.Status().ErrorCode != "mqtt_not_authorized" {
+		time.Sleep(time.Millisecond)
+	}
+	if transport.Status().ErrorCode != "mqtt_not_authorized" {
+		t.Fatal("old authentication error persisted across attempts")
+	}
+	cancel()
+	<-done
+}
+func TestLateConnectionNotificationDoesNotReplaceNewConnection(t *testing.T) {
+	transport, _ := New(config.Default())
+	transport.epoch.Store(2)
+	transport.setStatus(true, "")
+	transport.setGenerationStatus(1, false, "mqtt_connection_failed")
+	if !transport.Connected() || transport.Status().ErrorCode != "" {
+		t.Fatal("old disconnect changed current connection")
+	}
 }

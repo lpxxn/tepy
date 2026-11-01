@@ -93,7 +93,7 @@ Compress-Archive -Path .\dist\tepy-desktop-0.3.0\* -DestinationPath .\dist\tepy-
 在 [cmd/tepy-agent/main.go](../apps/macos-agent/cmd/tepy-agent/main.go) 设置版本：
 
 ```go
-var version = "0.1.0"
+var version = "0.2.0"
 ```
 
 `config.example.toml` 中的 `version = 1` 是配置格式版本，与应用发布版本独立；发布应用新版本时不要据此修改配置格式版本。
@@ -125,6 +125,18 @@ ditto -c -k --keepParent dist/tepy-macos-agent-0.1.0-darwin-arm64 dist/tepy-maco
 ```
 
 运行和安装步骤见 [macOS Go 服务文档](macos-agent.md)。
+
+### Agent 0.2.0 发布辅助
+
+当前 Apple Silicon 交付为 `dist/tepy-macos-agent-0.2.0-darwin-arm64/` 和同名 ZIP。原生构建脚本不自动整理发布包；新增工具在构建后整理：
+
+```powershell
+python tools/dev/package-agent.py --binary apps/macos-agent/build/tepy-agent-darwin-arm64
+```
+
+工具默认从工作区 Go 模块缓存收集依赖许可；在 Mac 可指定 `--module-cache "$(go env GOMODCACHE)" --go-license "$(go env GOROOT)/LICENSE"`。源码按 Git 可见文件白名单复制，不包含构建缓存或真实 TOML。文档发布副本去掉独立恢复值，保留原工作区文件。ZIP 包含 SHA256SUMS，并记录 Mac 程序的 Unix 执行权限。
+
+打包前需在 Mac 用新程序确认 version，并运行原生 CGo 构建 / race / vet。打包工具只检查 Mach-O 与架构，不代替运行验证。目标目录已存在时会拒绝混写；可以用 --output 指定新的目录。
 
 ## Flutter Android / Windows
 
@@ -161,3 +173,10 @@ Windows 输出 `dist/flutter-windows/0.2.0/`，包括 `tepy.exe`、DLL、`data`�
 发布脚本没有统一清理目标目录的逻辑。Flutter 重复打包同一应用版本会覆盖同名文件，复制目录时可能留下已从源码删除的旧文件；固件脚本再次复制到已有目录时也可能因同名文件报错。保留历史时使用新版本或新的输出目录，重新整理同版本包时使用干净的目标目录。
 
 `dist/` 中的目录名只是归档名称，重命名不会改变二进制内的版本。现有历史包中的源码快照也不会因为当前源码修改而自动变化。整理公开包时不加入本机配置、keystore、用户凭据、SDK 或缓存；文档需要检查是否包含本机填写的值。
+
+
+## Flutter 0.3.0 交付
+
+`pubspec.yaml` 为 `0.3.0+7`，Android / Windows 共用。新增 Mac 诊断 / 事件、明文 JSON 登录密码设置和网络 OTA，说明见 [Flutter 管理](flutter-management.md)。日常 APK 为 `dist/mobile-flutter/0.3.0/tepy-mobile-0.3.0-arm64.apk`，Windows 为 `dist/tepy-flutter-0.3.0-windows-x64.zip`。
+
+`mac-passwords.json` 和临时文件已忽略，运行文件位于应用支持目录，不随二进制 / 源码快照分发。构建不自动安装手机，不自动升级 ESP32。

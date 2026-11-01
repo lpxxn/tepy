@@ -1,6 +1,6 @@
 # 测试与验证记录
 
-当前固件版本为 **0.2.0**，桌面工具为 **0.3.0**，Mac Agent 为 **0.1.0**。2026-10-29，0.1.3 的 HID 注册已通过 SSH 确认，用户确认普通文字输入、睡眠唤醒、唤醒后解锁正常；随后发现断电重连失败。0.1.5 修正安全请求竞态及冷启动回调顺序后，用户真实拔电复测确认恢复且输入正常；2026-10-30 用户补充确认验证无问题，要求继续开发。未提供逐项持续时间或次数的场景仍保留专项记录，不据此填写过夜睡眠等具体结果。
+当前固件版本为 **0.2.0**，桌面工具为 **0.3.0**，Mac Agent 为 **0.2.0**，Flutter 为 **0.3.0**。2026-10-29，0.1.3 的 HID 注册已通过 SSH 确认，用户确认普通文字输入、睡眠唤醒、唤醒后解锁正常；随后发现断电重连失败。0.1.5 修正安全请求竞态及冷启动回调顺序后，用户真实拔电复测确认恢复且输入正常；2026-10-30 用户补充确认验证无问题，要求继续开发。未提供逐项持续时间或次数的场景仍保留专项记录，不据此填写过夜睡眠等具体结果。
 
 0.2.0 新增共享管理服务与 USB 串口；Qt 使用 QSerialPort，提供四页管理界面。自动测试、COM7 烧录及错误口令拒绝链路已通过，真实配置写入与 OTA 全流程仍待验收，见本页末尾。
 
@@ -265,3 +265,32 @@ Find X9 / Android 17 的独立测试 APK 已在 0.2.0 通过原生 drive 场景�
 最终交付已完成：日常 Android 0.2.0 / versionCode 5 使用 adb install -r 覆盖安装并启动，未卸载或清除应用数据；实机截图确认新字体、主题及已保存设备入口正常。Release APK 签名校验通过，应用 AOT 库为 arm64。Windows 便携包在仅含系统目录的 PATH 下成功启动，并恢复已有安全存储档案，未自动连接或执行动作。
 
 `flutter-windows.ps1 -Check -Package` 和 `mobile.ps1 -Package` 已实际运行。Windows 包含完整 Flutter bundle、native_assets.json、x64 CRT、源码、协议、许可和说明；字体随 APK / Windows assets 离线提供。两个发布目录的 SHA256SUMS 全部核对通过，Windows ZIP 完整性检查通过；排除 SDK、缓存、keystore、local.properties 与本地配置。
+
+### macOS Agent 0.2.0：故障诊断与事件时间线
+
+2026-11-01，Go 1.27.3，Windows 通用检查及 M1 Max / macOS 27 原生验收。配置格式保持 v1，state / availability 及旧 HTTP status 保持兼容；新报告使用独立 Schema / HTTP / MQTT 主题。
+
+- Windows `tools/dev/agent.ps1` 的测试、vet、构建通过；Mac `tools/build-macos.sh` 原生 race / vet / arm64 构建通过。
+- doctor 覆盖配置缺失的结构化错误、独立随机 Client ID、clean session / 无遗嘱、成功和拒绝认证、取消 / 超时、异常 CONNACK 长度、离线模式，以及真实本地 TLS 服务的自签 CA 信任与主机名校验。测试客户端只 CONNECT / DISCONNECT，不订阅、不发布、不替换正式 Agent 连接。错误信息和 JSON 不包含测试秘密。
+- MQTT 测试覆盖旧状态字段不变、新 QoS 1 / retained 主题、历史更新、认证拒绝分类、后续错误更新、迟到旧连接不覆盖新连接；服务对相同状态 / 错误不生成重复事件。
+- 事件覆盖固定 200 条环形容量、最近读取 / 增量分页、截断标志、重启 session 冲突、游标超前、并发读写及连续序号；服务并发采样不丢状态序号。周期心跳不会填满事件历史。
+- HTTP 覆盖新接口的 Bearer、Origin、只读、请求体拒绝、no-store、参数类型 / 重复 / 溢出 / 未知字段、过期采样诊断与旧 status 503 规则。CLI 测试验证结构化 doctor 失败、复用 Bearer 及拒绝错误代理身份。
+- 共享协议检查通过：11 份 Schema、13 个样例、3 组 CLI 至固件解析向量。最初向量运行缺少 MinGW DLL；在当前测试进程补入已有 MinGW 路径后通过，未修改固件。实际离线 doctor 输出也通过新 Schema。
+- 目标 Mac 更新前以真实运行配置执行 doctor，返回 ok；随后备份 0.1.0 程序、安装 0.2.0。连续 20 次本机 HTTP 检查保持 MQTT connected、HID registered、新报告与分页可用，旧状态字段集合保持一致，真实配置文件 Hash 未变。保留了验收失败自动恢复旧程序的路径，未触发回退。
+- 用户手动解锁和锁屏后，真实时间线出现 screen_unlocked → screen_locked，并观察到 did_wake。未自动输入、读取或记录 Mac 登录密码；这不等同于完整深度睡眠 / 过夜恢复验收。
+- 当前 Broker 上以独立只读客户端取得 state / availability / diagnostics / events，代理身份及 session 匹配；真实三类 JSON 均符合对应 Schema。生产 Broker 的新主题发布 / 订阅在本次配置下通过；TLS / mTLS 的生产 Broker 部署仍待专项。
+
+真实配置、HTTP / MQTT 凭据、设备事件历史不进入发布包。Flutter / Qt 仍使用原状态 / 控制流程，新的诊断与事件页面下一轮接入。配置热重载、主动睡眠恢复增强和菜单栏不在本轮实现。
+
+
+### Tepy Flutter 0.3.0：Mac 诊断、明文密码与网络 OTA
+
+2026-11-01，Flutter 3.47.9 / Dart 3.13.7。六页导航增加 Mac / 固件，Android 与 Windows 共用实现，未改 ESP32 固件与 Go 协议。
+
+- 52 项自动测试通过。包含 Agent 诊断过期、不同 session、乱序到达、200 条事件；MQTT 真实线协议与可选主题 ACL 拒绝；明文 JSON 手工编辑、目标隔离、格式错误保留、设置保存 / 清除、取消读取不发送与缓冲清理。
+- OTA 使用真实本机 HTTP 测试服务核对 raw bin、Bearer、Content-Length、禁止重定向和设备 ID；验证升级互斥、不同运行版本、上传中断、取消与不自动重传。另用实际 `firmware/build/tepy.bin`（ESP32-S3 / tepy / 0.2.0）通过客户端镜像解析。
+- 已检查中文 Mac 状态 / 诊断 / 时间线、保存密码弹窗和固件页面的测试截图；六页 320 像素窄屏及桌面缩放检查无异常。
+- Windows 原生 drive 集成场景通过（26 秒）：path_provider 返回实际应用支持目录，随机目录中的 JSON 保存、替换、读取及清除成功；原生安全存储随机条目、USB 枚举和六页导航正常；真实远程 Broker 上收到 ESP32 状态、Mac 同会话诊断与事件，并连续观察 20 秒状态稳定。测试不读取真实密码文件，不发送键盘或升级。
+- Android 独立测试 APK 已编译；按用户要求本轮只交付 APK，没有安装更新或运行 0.3.0 手机集成测试。0.2.0 的真机记录仍保留为历史，不能代替新增功能验收。
+
+仍需人工专项验收：手机原生选择 bin、使用自行保存的真实密码解锁、Flutter 发起的实际 OTA 及 OTA 断电回滚。自动测试不代替这些项目；没有自动输入真实登录密码或升级开发板。Mac 密码按用户要求明文保存，普通输入与日志不保存；发布包不包含运行时 JSON。

@@ -135,3 +135,18 @@ ESP32 状态的 now 需大于本机当前时间减十五秒，不能超过未来
 Android USB Host 仅枚举 ESP32 原生 USB（VID 0x303A），使用系统授权与逐请求管理 token；一次一个管理请求，十五秒回执超时不重发。密码 PATCH 保留 / 替换 / 清除语义与 HTTP、Qt 相同。移动端不新增 USB 键盘命令、二进制 OTA 或 Go 写接口。使用方法见 [手机文档](mobile-flutter.md)。
 
 0.1.1 在连接成功通知到达时撤销重试定时器，重试入口和定时器执行时也检查是否已经在线。不能依赖 connect Future 与事件流的投递顺序，否则成功连接可能被旧重试立即替换。此修复不改变状态租约、解锁前置条件或密码重试策略。
+
+## macOS Agent 0.2.0：诊断与事件
+
+原 agent-state 与 state / availability 不增加字段，旧客户端保持兼容。新增 `agent-diagnostics.schema.json`、`agent-events.schema.json` 与同名 JSON 示例。
+
+- MQTT `tepy/macos/<agent_id>/diagnostics`：QoS 1 / retained，随有效 state 发布；source=live，沿用该次采样的 observed_at / valid_until 和进程 session。过期后不能据此判断就绪。
+- MQTT `tepy/macos/<agent_id>/events`：QoS 1 / retained，发布当前进程最多 200 条内存历史，重连或 latest_sequence 改变时更新。事件不是命令，历史 retained 不能表示在线，必须与当前 state 的 session 对照。
+- HTTP `GET /api/v1/agent/diagnostics`：同一 Bearer，只读取已有采样；即使采样过期也返回报告，checks 包含 agent_state_stale，原 status 的 503 规则保持不变。
+- HTTP `GET /api/v1/agent/events`：同一 Bearer，可带 limit=1..200（默认 50）；省略 after 返回最近记录。增量读取需同时给 after（uint64）和 session（32 位小写十六进制）。重复、未知、空或非法参数返回 400 invalid_query。
+
+事件页包含 capacity、oldest_sequence、latest_sequence、next_after、truncated、has_more 和升序 events。游标落后于淘汰记录时 truncated=true；页未读完时 has_more=true。服务重启导致 session 改变时返回 409 event_session_changed；after 超过最新序号时返回 409 event_cursor_ahead。读取历史不要求当前采样有效。
+
+诊断为结构化 checks，每项包含 component / status / code / 固定 message；总 status 取最高严重程度。CLI doctor 也使用诊断 Schema，但 source=doctor、session 为空、valid_until=0，不能当作在线状态。它只以独立随机客户端执行 MQTT CONNECT / DISCONNECT，不验证发布 ACL。
+
+新接口沿用 no-store、拒绝跨源 Origin / 请求体 / 写方法等规则，除 events 外不接受查询参数。字段、默认值、诊断代码与 CLI 实例见 [Go 服务文档](macos-agent.md)。配置重载、命令订阅和客户端诊断页面不属于本轮实现。

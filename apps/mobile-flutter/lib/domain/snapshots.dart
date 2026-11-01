@@ -84,6 +84,7 @@ final class DeviceSnapshot {
 final class MacSnapshot {
   const MacSnapshot({
     required this.name,
+    this.agentVersion = '未知',
     required this.session,
     required this.sequence,
     required this.observedAt,
@@ -102,6 +103,7 @@ final class MacSnapshot {
     required this.lastEvent,
     required this.wakeCount,
   });
+  final String agentVersion;
   final String name,
       session,
       lockSource,
@@ -200,6 +202,9 @@ final class MacSnapshot {
     }
     final result = MacSnapshot(
       name: json['name'] as String,
+      agentVersion: json['agent_version'] is String
+          ? json['agent_version'] as String
+          : '未知',
       session: json['session'] as String,
       sequence: json['sequence'] as int,
       observedAt: observed,

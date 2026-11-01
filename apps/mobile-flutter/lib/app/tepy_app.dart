@@ -6,10 +6,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../application/providers.dart';
 import '../application/session_state.dart';
 import '../application/usb_controller.dart';
+import '../application/firmware_controller.dart';
 import '../presentation/screens/connection_screen.dart';
 import '../presentation/screens/controls_screen.dart';
 import '../presentation/screens/dashboard_screen.dart';
 import '../presentation/screens/usb_screen.dart';
+import '../presentation/screens/mac_screen.dart';
+import '../presentation/screens/firmware_screen.dart';
 import '../presentation/widgets/common.dart';
 import 'app_theme.dart';
 export 'app_theme.dart' show brand, ink, muted, line, canvas, success;
@@ -36,12 +39,14 @@ class _HomeState extends ConsumerState<_Home> with WidgetsBindingObserver {
   int _index = 0;
   // 跨导航断点移动页面时保留同一子树，缩放窗口不丢表单草稿。
   final _pagesKey = GlobalKey(debugLabel: 'responsive-pages');
-  static const _labels = ['状态', '操作', '设备', '连接'];
-  static const _titles = ['设备概览', '键盘控制', '设备管理', '连接设置'];
+  static const _labels = ['状态', '操作', 'Mac', '设备', '固件', '连接'];
+  static const _titles = ['设备概览', '键盘控制', 'Mac 状态与诊断', '设备管理', '固件管理', '连接设置'];
   static const _icons = [
     Icons.dashboard_outlined,
     Icons.keyboard_alt_outlined,
+    Icons.laptop_mac_rounded,
     Icons.usb_rounded,
+    Icons.system_update_alt_rounded,
     Icons.tune_rounded,
   ];
   @override
@@ -62,6 +67,7 @@ class _HomeState extends ConsumerState<_Home> with WidgetsBindingObserver {
         ref.read(sessionProvider.notifier).disconnect(background: true),
       );
       unawaited(ref.read(usbProvider.notifier).disconnect());
+      ref.read(firmwareProvider.notifier).cancel(background: true);
     }
   }
 
@@ -77,11 +83,13 @@ class _HomeState extends ConsumerState<_Home> with WidgetsBindingObserver {
     index: _index,
     children: [
       DashboardScreen(
-        onConnect: () => _select(3),
+        onConnect: () => _select(5),
         onControls: () => _select(1),
       ),
-      ControlsScreen(onConnect: () => _select(3)),
+      ControlsScreen(onConnect: () => _select(5)),
+      MacScreen(onConnect: () => _select(5)),
       const UsbScreen(),
+      const FirmwareScreen(),
       const ConnectionScreen(),
     ],
   );
@@ -184,8 +192,9 @@ class _HomeState extends ConsumerState<_Home> with WidgetsBindingObserver {
                         selectedIndex: _index,
                         onDestinationSelected: _select,
                         destinations: [
-                          for (var i = 0; i < 4; i++)
+                          for (var i = 0; i < _labels.length; i++)
                             NavigationDestination(
+                              key: ValueKey('nav-${_labels[i]}'),
                               icon: Icon(_icons[i]),
                               label: _labels[i],
                             ),
@@ -224,7 +233,7 @@ class _HomeState extends ConsumerState<_Home> with WidgetsBindingObserver {
                 ),
               ),
             ),
-            for (var i = 0; i < 4; i++)
+            for (var i = 0; i < _labels.length; i++)
               Padding(
                 padding: const EdgeInsets.only(bottom: 6),
                 child: Material(
@@ -233,6 +242,7 @@ class _HomeState extends ConsumerState<_Home> with WidgetsBindingObserver {
                       : Colors.transparent,
                   borderRadius: BorderRadius.circular(12),
                   child: InkWell(
+                    key: ValueKey('nav-${_labels[i]}'),
                     borderRadius: BorderRadius.circular(12),
                     onTap: () => _select(i),
                     child: Padding(
@@ -300,7 +310,7 @@ class _HomeState extends ConsumerState<_Home> with WidgetsBindingObserver {
             const Padding(
               padding: EdgeInsets.only(left: 10),
               child: Text(
-                'Tepy  0.2.0',
+                'Tepy  0.3.0',
                 style: TextStyle(fontSize: 10, color: Color(0xFF7584A2)),
               ),
             ),

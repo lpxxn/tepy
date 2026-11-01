@@ -62,3 +62,14 @@ Flutter Mobile 0.1.0 采用 domain / data / application / presentation 分层。
 ### Flutter 0.2.0 的平台边界
 
 `apps/mobile-flutter` 同时构建 Android 和 Windows，保留目录名以兼容已有脚本。共享 Dart domain / application / presentation，平台差异集中在 `data/platform_info.dart`、系统存储插件及两端 USB 原生桥。Windows runner 只有生命周期、窗口与串口职责，不解析业务 JSON。主题在 app_theme，导航按宽度自适应，根协议与 Qt / Go 构建继续独立。
+
+### Go Agent 0.2.0 可观察性
+
+`internal/diagnostics` 将固定检查结果转换为脱敏诊断；doctor 只做一次主动检查，HTTP / MQTT 则消费已有快照。`model.Journal` 是并发安全、容量 200 的内存环；service 记录原生及采样状态变化，mqtt 记录连接 / 固定错误代码，历史与网络发送队列分离。旧 state 结构不变，新报告与事件拥有独立 Schema 和主题。
+
+
+### Flutter 0.3.0 管理边界
+
+同一 Dart / Riverpod 应用提供 Android / Windows 六页导航。Mac 观察模型独立于键盘动作，诊断 / 历史按 Agent session 绑定；可选 MQTT 主题订阅失败不影响既有控制连接。明文 Mac 登录密码通过 MacPasswordStore 接口独立落盘，页面状态只保留元数据，执行时读取对应 Broker + Mac + ESP32 的条目。
+
+OTA 分为 FirmwareImage 镜像验证、FirmwarePicker 文件选择、FirmwareClient HTTP 传输和 FirmwareController 生命周期编排。升级使用独立 HTTP 通道、共享 maintenance 互斥，核对新会话与实际版本后确认。取消后迟到结果通过 epoch 失效；上传不自动重试。使用与学习说明见 [Flutter 管理](flutter-management.md)。

@@ -1,0 +1,46 @@
+{
+  "v": 1,
+  "agent_id": "mac-example",
+  "session": "0123456789abcdef0123456789abcdef",
+  "observed_at": 1793494800000,
+  "capacity": 200,
+  "oldest_sequence": 1,
+  "latest_sequence": 4,
+  "next_after": 4,
+  "truncated": false,
+  "has_more": false,
+  "events": [
+    {
+      "sequence": 1,
+      "at": 1793494780000,
+      "kind": "agent_started",
+      "from": "",
+      "to": "running",
+      "code": ""
+    },
+    {
+      "sequence": 2,
+      "at": 1793494781000,
+      "kind": "mqtt_connected",
+      "from": "disconnected",
+      "to": "connected",
+      "code": ""
+    },
+    {
+      "sequence": 3,
+      "at": 1793494790000,
+      "kind": "screen_locked",
+      "from": "unknown",
+      "to": "locked",
+      "code": ""
+    },
+    {
+      "sequence": 4,
+      "at": 1793494800000,
+      "kind": "did_wake",
+      "from": "sleeping",
+      "to": "awake",
+      "code": ""
+    }
+  ]
+}

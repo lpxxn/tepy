@@ -1,4 +1,4 @@
-# Tepy Flutter 0.2.0
+# Tepy Flutter 0.3.0
 
 Flutter / Dart / Riverpod 编写的 Android / Windows 控制台。通过 MQTT 查看 Mac、ESP32 与 BLE 状态，发送唤醒、文字、组合键或单次解锁；通过 Android USB OTG 或 Windows COM 串口配置 ESP32。复用根目录 `protocol/v1`，不依赖 Qt、Go 或 ESP-IDF 构建系统。
 
@@ -32,9 +32,9 @@ lib/
   app/app_theme.dart                颜色、字体、卡片和表单主题
   app/tepy_app.dart                  自适应导航、前后台生命周期
   domain/                           配置、状态、命令、串口分帧及校验
-  data/                             MQTT、系统安全存储、USB 平台通道
+  data/                             MQTT、JSON / 系统安全存储、HTTP OTA、USB 平台通道
   application/                      Riverpod 状态与异步流程控制
-  presentation/screens/             状态 / 操作 / USB 设备 / 连接四页
+  presentation/screens/             状态 / 操作 / Mac / USB 设备 / 固件 / 连接六页
   presentation/widgets/             通用卡片、提示与详情行
 android/app/src/main/kotlin/.../     MainActivity、USB Host 原生桥接
 windows/runner/usb_bridge.cpp        SetupAPI / Win32 串口原生桥接
@@ -43,9 +43,9 @@ test/                               领域、异步流程、串口、界面测�
 integration_test/                   显式运行的手机 / Windows 原生集成测试
 ```
 
-前台连接由用户发起，进入后台关闭连接并取消后续操作。连接信息可安全记忆；Mac 登录输入只用于当次操作，不保存、不回显、不记日志。`sent` 表示 HID 发送完成，Mac 的解锁结果单独展示。
+前台连接由用户发起，进入后台关闭连接并取消后续操作。连接信息可安全记忆；普通 Mac 登录输入只用于当次操作；可显式保存到本机明文 JSON，不回显、不记日志。`sent` 表示 HID 发送完成，Mac 的解锁结果单独展示。
 
-USB 仅支持 ESP32-S3 原生 USB Serial/JTAG（VID 0x303A），需要固件 0.2.0+、OTG 数据连接和现有管理口令。暂不在手机端提供 OTA、ROM 刷机、普通串口终端或 USB 键盘动作。
+USB 仅支持 ESP32-S3 原生 USB Serial/JTAG（VID 0x303A），需要固件 0.2.0+、OTG 数据连接和现有管理口令。网络 OTA 在“固件”页提供；暂不提供 ROM 刷机、普通串口终端或 USB 键盘动作。
 
 0.1.1 修复 MQTT 已连接后仍每秒重连的竞态，避免状态卡反复变为未知、按钮禁用和解锁等待中断。Debug / 集成测试使用独立包名 `com.tepy.tepy_mobile.debug`；日常 Release 包名不变，升级保留连接档案。
 
@@ -67,3 +67,7 @@ flutter build windows --release --target lib/main.dart
 ```
 
 Windows 需要 Visual Studio 2022 C++ 桌面工具链、Windows SDK 和 C++ ATL；输出必须连同 DLL / data 目录分发。详见 Windows 文档。Android 包名、存储格式和键盘协议不变。
+
+## 0.3.0 管理功能
+
+Mac 状态 / 诊断 / 最近事件、明文 JSON 保存登录密码、Android / Windows 网络 OTA 已实现。使用步骤、JSON 格式和操作边界见 [Flutter 管理](../../docs/flutter-management.md)。新增 file_selector、path_provider 和 crypto，版本锁定于 pubspec.lock；Mac 密码不依赖系统安全存储，Broker 与 ESP32 管理连接保持原存储方式。

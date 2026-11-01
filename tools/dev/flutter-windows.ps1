@@ -75,7 +75,7 @@ try {
         foreach ($name in 'flutter-windows.ps1', 'mobile.ps1', 'subset-flutter-font.py', 'generate-flutter-icon.py') {
             Copy-Item -LiteralPath (Join-Path $PSScriptRoot $name) -Destination $scripts -Force
         }
-        $readme = "Tepy Flutter $version / Windows x64`n`n解压整个目录后运行 tepy.exe，保留所有 DLL 与 data 目录。`n同机 Broker：mqtt://127.0.0.1:1883；使用说明：docs/flutter-windows.md。`n与 Qt、Android 配置独立。使用本机安全存储，不包含用户连接信息。`n源代码：apps/mobile-flutter，构建工具：tools/dev，字体许可随源码和应用提供。`n开发版本，未进行发行签名。`n"
+        $readme = "Tepy Flutter $version / Windows x64`n`n解压整个目录后运行 tepy.exe，保留所有 DLL 与 data 目录。`n同机 Broker：mqtt://127.0.0.1:1883；使用说明：docs/flutter-windows.md。`n与 Qt、Android 配置独立。连接使用本机安全存储，Mac 密码可单独存入明文 JSON；包内不包含用户配置。`n源代码：apps/mobile-flutter，构建工具：tools/dev，字体许可随源码和应用提供。`n开发版本，未进行发行签名。`n"
         [IO.File]::WriteAllText((Join-Path $destination 'README.txt'), $readme, [Text.UTF8Encoding]::new($false))
         $hashes = Get-ChildItem -LiteralPath $destination -Recurse -File | Where-Object { $_.Name -ne 'SHA256SUMS' } | Sort-Object FullName |
             ForEach-Object { '{0}  {1}' -f (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant(), [IO.Path]::GetRelativePath($destination, $_.FullName).Replace('\', '/') }

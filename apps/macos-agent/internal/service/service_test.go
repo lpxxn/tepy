@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/lpxxn/tepy/apps/macos-agent/internal/config"
@@ -14,6 +15,71 @@ type fakeProbe struct{}
 
 func (fakeProbe) Sample(id string) platform.Snapshot {
 	return platform.Snapshot{Session: model.Session{LockState: "unknown", LockSource: "unavailable"}, HID: model.HID{State: "unknown", TargetDeviceID: id, Devices: []model.HIDDevice{}}}
+}
+
+func TestTimelineRecordsChangesWithoutHeartbeatNoise(t *testing.T) {
+	c := config.Default()
+	c.AgentID = "mac-test"
+	p := &consoleProbe{onConsole: true, nativeLock: "unknown"}
+	s, _ := New(c, "test", p, nil)
+	initial, _ := s.Journal.Read(nil, model.EventCapacity, "")
+	for i := 0; i < 20; i++ {
+		s.Sample()
+	}
+	stable, _ := s.Journal.Read(nil, model.EventCapacity, "")
+	if stable.LatestSequence != initial.LatestSequence {
+		t.Fatal("heartbeat filled event history")
+	}
+	s.Handle(platform.Event{Kind: "screen_locked", At: 100})
+	s.Sample()
+	s.Handle(platform.Event{Kind: "screen_locked", At: 100})
+	s.Sample()
+	s.Handle(platform.Event{Kind: "will_sleep", At: 200})
+	s.Sample()
+	s.Handle(platform.Event{Kind: "did_wake", At: 300})
+	s.Sample()
+	s.Handle(platform.Event{Kind: "did_wake", At: 300})
+	s.Sample()
+	s.Handle(platform.Event{Kind: "screen_unlocked", At: 400})
+	s.Sample()
+	page, _ := s.Journal.Read(nil, model.EventCapacity, "")
+	counts := map[string]int{}
+	for _, event := range page.Events {
+		counts[event.Kind]++
+	}
+	for _, kind := range []string{"agent_started", "screen_locked", "will_sleep", "did_wake", "screen_unlocked"} {
+		if counts[kind] != 1 {
+			t.Fatal(counts)
+		}
+	}
+	p.onConsole = false
+	s.Sample()
+	page, _ = s.Journal.Read(nil, model.EventCapacity, "")
+	if page.Events[len(page.Events)-2].Kind != "console_inactive" || page.Events[len(page.Events)-1].Kind != "screen_lock_unknown" {
+		t.Fatal(page)
+	}
+}
+
+func TestConcurrentSamplingHasMonotonicStateAndSafeReaders(t *testing.T) {
+	c := config.Default()
+	c.AgentID = "mac-test"
+	s, _ := New(c, "test", fakeProbe{}, nil)
+	var workers sync.WaitGroup
+	for i := 0; i < 5; i++ {
+		workers.Add(1)
+		go func() {
+			defer workers.Done()
+			for n := 0; n < 20; n++ {
+				s.Sample()
+				_ = s.Diagnostics()
+				_, _ = s.Journal.Read(nil, 50, "")
+			}
+		}()
+	}
+	workers.Wait()
+	if s.Store.Get().Sequence != 101 {
+		t.Fatal("concurrent sampling lost sequence")
+	}
 }
 func (fakeProbe) Watch(ctx context.Context, _ chan<- platform.Event) error { <-ctx.Done(); return nil }
 func TestStateLeaseAndPowerTransitions(t *testing.T) {

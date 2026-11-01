@@ -1,12 +1,12 @@
 # macOS Go 状态服务
 
-服务版本 **0.1.0**，配合 Qt Desktop **0.2.0 及以上**。目标环境为 Apple Silicon / macOS 27；以当前登录用户的 LaunchAgent 运行。首版提供 MQTT 状态、睡眠／唤醒观察、用户会话和 Tepy HID 诊断，不接收远程执行、密码输入或解锁命令。
+服务版本 **0.2.0**，配合 Qt Desktop **0.2.0 及以上**。目标环境为 Apple Silicon / macOS 27；以当前登录用户的 LaunchAgent 运行。提供 MQTT 状态、睡眠／唤醒观察、用户会话、Tepy HID 诊断及事件时间线，不接收远程执行、密码输入或解锁命令。
 
 ## 当前部署与连接
 
-已在用户授权的 Mac 安装。2026-10-31 用户确认当前地址为 `192.168.50.246`，MQTT Broker 为 `mqtt://192.168.50.99:1883`。本次按用户明确授权，将 HTTP 状态接口绑定为 `0.0.0.0:18765`；源码初始配置仍默认 `127.0.0.1:18765`。
+已在用户授权的 Mac 安装。2026-11-01 用户确认当前地址为 `192.168.50.90`，MQTT Broker 为 `mqtt://192.168.50.99:1883`。本次按用户明确授权，将 HTTP 状态接口绑定为 `0.0.0.0:18765`；源码初始配置仍默认 `127.0.0.1:18765`。
 
-2026-11-01 指定的新 MQTT 地址为 `39.97.238.102`，修改与重启步骤见下文[修改 MQTT 地址与重启](#修改-mqtt-地址与重启)。是否已切换成功，以 Mac 重启服务后的连接状态为准。
+2026-11-01 指定的新 MQTT 地址为 `39.97.238.102`，修改与重启步骤见下文[修改 MQTT 地址与重启](#修改-mqtt-地址与重启)。本轮沿用 Mac 现有 Broker 设置，已验证 MQTT 连接及四个 Agent 主题，不把文档示例当作运行配置。
 
 实际配置在 Mac：
 
@@ -14,9 +14,9 @@
 ~/Library/Application Support/Tepy/agent.toml
 ```
 
-本次生成的同一份配置也保留在仓库的 `apps/macos-agent/agent.local.toml`，供本机查看 `http.token` 并填写 Qt。该文件被 Git 忽略，不放入任何分发包。后续若在 Mac 修改配置，需自行同步本地副本。
+早期部署时的本地配置副本保留在仓库的 `apps/macos-agent/agent.local.toml`，仅供本机查看早期 `http.token` 并填写 Qt；它可能与当前 Mac 配置不同。本轮更新只使用 Mac 上的真实运行配置，不覆盖本地副本。该文件被 Git 忽略，不放入任何分发包。后续若在 Mac 修改配置，需自行同步本地副本。
 
-Qt 左侧选择“Mac 状态”，填写 `http://192.168.50.246:18765` 和 TOML 中的 `http.token`。这个口令独立于 ESP32 管理口令。页面每五秒只读刷新，展示服务在线状态、锁定状态、HID 注册、MQTT 连接及电源事件，不禁用编辑器来执行轮询。
+Qt 左侧选择“Mac 状态”，填写 `http://192.168.50.90:18765` 和 TOML 中的 `http.token`。这个口令独立于 ESP32 管理口令。页面每五秒只读刷新，展示服务在线状态、锁定状态、HID 注册、MQTT 连接及电源事件，不禁用编辑器来执行轮询。
 
 Qt 0.3.0 也可在“键盘控制”页通过同一 Broker 和 TOML 的 `agent_id` 接收状态，此时不用填写 Mac IP。该页负责向 ESP32 提交单次动作，Go 服务仍只报告状态。Qt 可以记住 HTTP 地址和服务口令，键盘输入不保存，详见 [键盘控制文档](keyboard-control.md)。
 
@@ -44,6 +44,9 @@ chmod +x ./tepy-agent
 | --- | --- |
 | init | 生成 TOML 配置与随机 HTTP 口令 |
 | validate | 检查配置、CA 和客户端证书／私钥文件 |
+| doctor | 主动诊断配置、证书、Mac 会话、HID 和 Broker 连接，输出 JSON；-offline 跳过网络 |
+| diagnostics | 读取已运行服务的持续诊断报告 |
+| events | 最近事件，支持 -limit / -after / -session |
 | probe | 一次性读取原生会话／HID，不建立后台监听或 MQTT 连接 |
 | run | 前台运行服务，便于开发 |
 | status | 使用配置中的口令读取正在运行的服务，不输出配置秘密 |
@@ -177,9 +180,9 @@ client_key_file = "certs/client.key"
 
 完整字段与样例放在 `protocol/v1/schemas/agent-state.schema.json` / `protocol/v1/examples/agent-state.json`，规范见 [协议文档](protocol.md)。
 
-MQTT：`tepy/macos/<agent_id>/state` 发布完整 JSON；`availability` 发布 online / offline。两者 QoS 1、retained。使用干净会话，遗嘱为 offline；断线后指数退避重连，只发布最新有效快照，不积压旧状态。服务不订阅命令主题。
+MQTT：`tepy/macos/<agent_id>/state` 发布完整 JSON；`availability` 发布 online / offline。两者 QoS 1、retained。使用干净会话，遗嘱为 offline；断线后指数退避重连，只发布最新有效快照，不积压旧状态。服务不订阅命令主题。0.2.0 另外发布 diagnostics 和 events，见下文。
 
-HTTP：`GET /api/v1/agent/status`，需要 `Authorization: Bearer <http.token>`，返回相同状态。无 Cookie／CORS，拒绝跨源 Origin、请求体和写方法。错误不回显口令。返回 state_stale 表示采样已过期；Qt 会等待恢复，并将当前结果标为未知。
+HTTP：`GET /api/v1/agent/status`、`/api/v1/agent/diagnostics` 和 `/api/v1/agent/events`，需要 `Authorization: Bearer <http.token>`，status 返回原状态，新接口返回各自报告。无 Cookie／CORS，拒绝跨源 Origin、请求体和写方法。错误不回显口令。返回 state_stale 表示采样已过期；Qt 会等待恢复，并将当前结果标为未知。
 
 ## 目录、构建与验证
 
@@ -204,3 +207,76 @@ Windows 运行 `tools/dev/agent.ps1` 做 Go 测试／vet 和开发工具构建�
 应用版本在 `cmd/tepy-agent/main.go` 的 `var version` 中维护，与 TOML 配置格式版本独立。Mac 构建脚本只生成 `build/tepy-agent`，不会自动整理 `dist/` 或生成 ZIP；发布目录、架构命名与校验清单整理见 [构建、发布目录与版本号](releases.md)。
 
 本轮已执行 Windows Go 测试、目标 Mac 原生 race/vet、真实 Broker 心跳订阅和 Qt 到 Mac 的只读请求。用户手动锁屏／解锁后，实际观察到 locked → unlocked。完整睡眠／唤醒、TLS Broker／mTLS 实机部署、其他 macOS 版本和用户切换仍需专项验证，详见 [测试记录](testing.md)。
+
+## 0.2.0 故障诊断
+
+日常排查优先读取服务持续采集的诊断：
+
+```sh
+"$HOME/Library/Application Support/Tepy/bin/tepy-agent" diagnostics
+```
+
+实时报告来自已有采样和 MQTT 连接结果，HTTP 轮询不会启动额外 hidutil 或外部网络探测。`status` 旧结构不变。诊断带 `source=live`、当前进程 session、observed_at / valid_until；过期后不应拿来判断输入条件。HTTP 诊断即使采样过期也返回 200，并用 `agent_state_stale` 错误解释原因，原 status 仍返回 503。
+
+需要进一步定位网络时，在 Mac 执行：
+
+```sh
+"$HOME/Library/Application Support/Tepy/bin/tepy-agent" doctor
+"$HOME/Library/Application Support/Tepy/bin/tepy-agent" doctor -offline
+```
+
+doctor 先校验配置和证书材料，再读取一次 Mac GUI / HID，按 DNS → TCP → TLS → MQTT CONNECT 检查。TLS 保留主机名、CA 和客户端证书校验。网络阶段有超时上限，命令总体网络上下文为 12 秒；无效前置条件不会继续后续网络检查。`-offline` 保留本地检查，不发起 Broker 连接。
+
+网络检查使用随机 `tepy-doctor-...` 客户端，干净会话、无遗嘱，不使用正式 Agent 的 Client ID，不发布、不订阅。它验证连接与认证，不验证主题发布权限；限制 Client ID 的 Broker 可能需要允许此诊断前缀。doctor 不修改配置、安装或停止服务，也不读取 Mac 登录密码。
+
+报告的 `status` 为 ok / warning / error，checks 中每项为 ok / warning / error / skipped。存在 error 时 CLI 退出 1；仅 warning / skipped 时退出 0。报告 `source=doctor`、session 为空、valid_until=0，表示一次检查，不是在线租约。一次性查询缺少锁屏事件时出现 unknown，仍可用后台 diagnostics 查看持续观察结果。
+
+常见代码：
+
+| 代码 | 含义 |
+| --- | --- |
+| configuration_invalid / tls_configuration_invalid | 配置或证书材料无效 |
+| dns_lookup_failed / tcp_connect_failed / network_timeout | 名称解析、端口或超时问题 |
+| tls_ca_untrusted / tls_hostname_mismatch / tls_certificate_expired | CA、主机名或证书有效期问题 |
+| mqtt_bad_credentials / mqtt_not_authorized | Broker 拒绝认证 / 授权 |
+| mqtt_client_id_rejected / mqtt_protocol_rejected | Broker 拒绝客户端 ID / 协议 |
+| mqtt_connection_failed | 后台连接失败，主动 doctor 可继续分阶段定位 |
+| gui_session_inactive / gui_session_unknown | 控制台或登录会话条件不明 |
+| screen_lock_unknown / hid_absent / hid_unknown | 锁定状态或目标键盘条件不明 |
+| power_monitor_unavailable / agent_state_stale | 事件监听不可用或采样过期 |
+
+消息仅来自固定说明，不包含 URL、用户名、MQTT 密码、HTTP token、证书内容或原始错误文本。单项诊断通过不表示密码框已聚焦，也不授权自动输入。
+
+## 0.2.0 最近事件
+
+```sh
+"$HOME/Library/Application Support/Tepy/bin/tepy-agent" events
+"$HOME/Library/Application Support/Tepy/bin/tepy-agent" events -limit 200
+# 从上次响应保存 session 和 next_after，再进行增量读取：
+"$HOME/Library/Application Support/Tepy/bin/tepy-agent" events -session <32位session> -after <next_after> -limit 50
+```
+
+历史最多 200 条，只在内存保存，重启清空。记录启动、锁定状态变化、睡眠 / 唤醒、控制台变化、HID、MQTT 连接 / 固定错误原因和电源监听状态。周期采样不产生重复记录，同一错误的连续重试不产生重复记录。事件不包含输入内容、密码、任意日志或请求参数。
+
+HTTP：`GET /api/v1/agent/events`。不带 after 时返回最近 limit 条、按 sequence 升序排列；limit 默认 50，范围 1–200。增量查询为 `?session=<session>&after=<next_after>&limit=50`，after 必须同时提供 session。每个查询参数只允许出现一次，不接受其他字段。
+
+响应的 next_after 是本页最后一条序号；has_more=true 时继续取下一页。truncated=true 表示旧记录已因容量上限淘汰，本页从仍保留的最早记录开始。409 event_session_changed 表示服务重启，409 event_cursor_ahead 表示游标超前；客户端需清除旧游标重新取最近事件。时间采用 Unix 毫秒，排序采用进程内递增序号，系统调时不改变事件顺序。
+
+MQTT 新主题：
+
+| 主题 | 内容 | QoS / retained |
+| --- | --- | --- |
+| tepy/macos/\<agent_id\>/diagnostics | 当前有效诊断报告，随有效状态发布 | 1 / true |
+| tepy/macos/\<agent_id\>/events | 当前会话最多 200 条内存历史快照，重连或历史变化时发布 | 1 / true |
+
+新主题需有对应发布权限。历史快照不是动作，不重放到键盘，也不能作为在线或解锁结果；在线判断继续使用 state 的新鲜度。服务离线仍在本机记录事件，重连后发送当时的有界历史，不积压网络发送任务。旧 retained 可能属于前一个进程，客户端须核对 agent_id / session。
+
+共享 Schema 与示例为 `agent-diagnostics`、`agent-events`。现有 Flutter / Qt 状态及键盘操作继续读取旧主题，新诊断与事件页面尚未接入。
+
+## 0.2.0 本轮部署记录
+
+2026-11-01 已在目标 Mac 192.168.50.90 原生构建为 darwin/arm64，Go 1.27.3；race 测试、vet 与构建通过。实际配置下 doctor 返回 ok，Tepy HID 已注册，Broker TCP 与 MQTT CONNECT 成功。
+
+更新前保留旧程序备份，更新后连续 20 次检查服务版本、MQTT、诊断和事件分页；原状态及 mqtt 子对象的字段集合与 0.1.0 一致，配置文件校验值保持一致。用户手动解锁 / 锁屏后，已观察到 screen_unlocked、screen_locked 以及 did_wake；未自动输入或读取登录密码。
+
+通过当前 Broker 的独立只读客户端收到 state / availability / diagnostics / events，真实消息符合三份 Schema。手机 / Qt 的诊断页面接入、完整深度睡眠恢复和生产 TLS / mTLS Broker 仍留待后续；本轮 TLS 自动测试使用本地测试证书。

@@ -18,10 +18,18 @@ Windows 构建、运行包、Qt 自动测试及开发板串口鉴权链路已验
 
 ## 演进
 
-Flutter Mobile 0.1.2 位于 `apps/mobile-flutter`，已实现 Android MQTT 状态／控制、单次解锁、连接安全记忆和 USB OTG 管理，附中文注释、学习导读与自动测试。0.1.1 修复连接成功后旧重试仍运行导致的状态清空和解锁中断，用户已确认手机真实解锁成功、状态不闪烁；0.1.2 修复 TLS 证书展开灰框。不引入新的固件或 Go 协议。手机 OTA、ROM 刷机、iOS 和多设备档案留待实际需求；USB OTG 真实保存／重启仍需专项验收。见 [手机文档](mobile-flutter.md)。
+Flutter Mobile 0.1.2 位于 `apps/mobile-flutter`，已实现 Android MQTT 状态／控制、单次解锁、连接安全记忆和 USB OTG 管理，附中文注释、学习导读与自动测试。0.1.1 修复连接成功后旧重试仍运行导致的状态清空和解锁中断，用户已确认手机真实解锁成功、状态不闪烁；0.1.2 修复 TLS 证书展开灰框。不引入新的固件或 Go 协议。网络 OTA 已在 0.3.0 实现；ROM 刷机、iOS 和多设备档案留待实际需求；USB OTG 真实保存／重启仍需专项验收。见 [手机文档](mobile-flutter.md)。
 
 目标 Mac 的基础输入、睡眠唤醒及断电恢复已由用户确认；Qt 管理和 Go 状态服务均已有可用版本。不引入自动重复密码尝试。配置迁移、签名固件和设备证书仍为后续功能。没有需求时不提前引入多 Broker、云端设备平台或通用插件框架。
 
 ### Flutter Windows（0.2.0）
 
-已实现与 Android 共用的现代界面、桌面导航 / 分栏、MQTT / TLS、系统安全存储及原生 COM 串口管理。后续可考虑多连接档案、应用签名与安装器；Windows Flutter 目前以便携目录交付，与 Qt 配置独立，不提供固件 ROM 刷机或 OTA。
+已实现与 Android 共用的现代界面、桌面导航 / 分栏、MQTT / TLS、系统安全存储及原生 COM 串口管理。后续可考虑多连接档案、应用签名与安装器；Windows Flutter 目前以便携目录交付，与 Qt 配置独立，0.3.0 增加网络 OTA，尚不提供固件 ROM 刷机。
+
+### Go Agent 0.2.0
+
+已增加 doctor（配置 / TLS / DNS / TCP / MQTT CONNECT / 本机会话与 HID）、后台诊断、200 条内存事件、只读 HTTP / 独立 MQTT 主题与事件分页。Flutter 0.3.0 已接入诊断 / 最近事件，Qt 后续接入；再考虑配置重载、唤醒后的重连增强及 Mac 菜单栏入口。本轮不增加密码输入或远程执行能力。
+
+### Flutter 0.3.0
+
+已接入 Go 0.2.0 Mac 状态、诊断和事件时间线；操作页显式保存密码到可编辑明文 JSON；固件页支持 Android / Windows 网络 OTA。后续可补实机升级与断电回滚、多平台构建，以及用户有需求时的 USB ROM 刷机。详见 [管理说明](flutter-management.md)。

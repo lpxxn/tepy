@@ -17,6 +17,8 @@ import 'package:tepy_mobile/domain/commands.dart';
 import 'package:tepy_mobile/domain/connection_profile.dart';
 import 'package:tepy_mobile/domain/serial_management.dart';
 
+import 'native_storage_check.dart';
+
 /// 原生 Windows 测试：临时存储项、真实串口、只读 MQTT。
 /// 不读取/覆盖用户连接档案；不保存配置、不配对、不发送键盘内容。
 class _EmptyStore implements ConnectionStore {
@@ -41,6 +43,7 @@ void main() {
       UncontrolledProviderScope(container: container, child: const TepyApp()),
     );
     await tester.pumpAndSettle();
+    await checkNativePasswordStorage();
     final key = 'tepy.smoke.${requestId()}', value = requestId();
     const storage = FlutterSecureStorage();
     try {
@@ -102,14 +105,26 @@ void main() {
     if (const bool.fromEnvironment('TEPY_BROKER_CHECK')) {
       final controller = container.read(sessionProvider.notifier);
       await controller.connect(
-        const ConnectionProfile(broker: 'mqtt://127.0.0.1:1883'),
+        const ConnectionProfile(
+          broker: String.fromEnvironment(
+            'TEPY_BROKER',
+            defaultValue: 'mqtt://127.0.0.1:1883',
+          ),
+        ),
       );
       for (var i = 0; i < 60; i++) {
         await tester.pump(const Duration(milliseconds: 300));
-        if (container.read(sessionProvider).device != null) break;
+        final state = container.read(sessionProvider);
+        if (state.device != null &&
+            state.diagnostics != null &&
+            state.history != null) {
+          break;
+        }
       }
       expect(container.read(sessionProvider).link, LinkState.online);
       expect(container.read(sessionProvider).device, isNotNull);
+      expect(container.read(sessionProvider).diagnostics, isNotNull);
+      expect(container.read(sessionProvider).history, isNotNull);
       final unstable = <bool>[];
       final listener = container.listen(sessionProvider, (_, state) {
         unstable.add(state.link != LinkState.online || state.device == null);
@@ -124,8 +139,8 @@ void main() {
         await controller.disconnect();
       }
     }
-    for (final tab in ['操作', '设备', '连接', '状态']) {
-      await tester.tap(find.text(tab).last);
+    for (final tab in ['操作', 'Mac', '设备', '固件', '连接', '状态']) {
+      await tester.tap(find.byKey(ValueKey('nav-$tab')));
       await tester.pumpAndSettle();
       expect(tester.takeException(), isNull);
     }

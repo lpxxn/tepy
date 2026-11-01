@@ -1,0 +1,141 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tepy.local/protocol/v1/agent-diagnostics.schema.json",
+  "title": "Tepy agent v1 diagnostic report",
+  "type": "object",
+  "properties": {
+    "v": {
+      "const": 1
+    },
+    "agent_id": {
+      "type": "string",
+      "pattern": "^([A-Za-z0-9_.-]{1,64})?$"
+    },
+    "agent_version": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64
+    },
+    "session": {
+      "type": "string",
+      "pattern": "^([a-f0-9]{32})?$"
+    },
+    "source": {
+      "enum": [
+        "live",
+        "doctor"
+      ]
+    },
+    "observed_at": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "valid_until": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "status": {
+      "enum": [
+        "ok",
+        "warning",
+        "error"
+      ]
+    },
+    "checks": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 32,
+      "items": {
+        "type": "object",
+        "properties": {
+          "component": {
+            "enum": [
+              "agent",
+              "configuration",
+              "tls_material",
+              "platform",
+              "user_session",
+              "screen_lock",
+              "hid",
+              "power",
+              "mqtt",
+              "dns",
+              "tcp",
+              "tls",
+              "network"
+            ]
+          },
+          "status": {
+            "enum": [
+              "ok",
+              "warning",
+              "error",
+              "skipped"
+            ]
+          },
+          "code": {
+            "type": "string",
+            "pattern": "^[a-z_]{1,64}$"
+          },
+          "message": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          }
+        },
+        "required": [
+          "component",
+          "status",
+          "code",
+          "message"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": [
+    "v",
+    "agent_id",
+    "agent_version",
+    "session",
+    "source",
+    "observed_at",
+    "valid_until",
+    "status",
+    "checks"
+  ],
+  "additionalProperties": false,
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "source": {
+            "const": "live"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "agent_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "session": {
+            "type": "string",
+            "minLength": 32
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "session": {
+            "const": ""
+          },
+          "valid_until": {
+            "const": 0
+          }
+        }
+      }
+    }
+  ]
+}

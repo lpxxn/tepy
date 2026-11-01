@@ -1,6 +1,6 @@
 # Android 手机控制台
 
-Tepy Flutter 0.2.0 位于 `apps/mobile-flutter`。当前提供 arm64 APK，适用于 Android 7.0（API 24）以上；本轮目标手机为 OPPO Find X9 / PLJ110 / Android 17。日常应用 ID 为 `com.tepy.tepy_mobile`，与 Qt、Go、ESP32 的配置独立。
+Tepy Flutter 0.3.0 位于 `apps/mobile-flutter`。当前提供 arm64 APK，适用于 Android 7.0（API 24）以上；本轮目标手机为 OPPO Find X9 / PLJ110 / Android 17。日常应用 ID 为 `com.tepy.tepy_mobile`，与 Qt、Go、ESP32 的配置独立。
 
 0.1.1 修复 MQTT 连接成功与异步事件的时序竞态。旧版可能在已经连接后继续每秒重连，导致状态在在线／未知之间切换、按钮禁用，以及唤醒后的输入步骤被取消。升级保留已保存连接。Debug / 真机集成测试使用独立的 `com.tepy.tepy_mobile.debug`（“Tepy 测试”），测试清理不影响日常应用。
 
@@ -10,13 +10,15 @@ Tepy Flutter 0.2.0 位于 `apps/mobile-flutter`。当前提供 arm64 APK，适�
 
 0.2.0 统一为现代靛蓝主题与内置中文字体，手机使用底部导航，Windows 使用侧边导航和分栏布局；连接记忆、TLS 圆角与状态稳定修复继续保留。同一份 Flutter 代码现可在 Windows x64 运行，详见 [Windows 使用与构建](flutter-windows.md)。Windows 同机 Broker 默认地址为 `mqtt://127.0.0.1:1883`，Android 保持局域网地址。两种系统的连接档案各自保存，不自动同步。
 
+0.3.0 增加“Mac”诊断 / 事件页、明文 JSON 密码保存和 Android / Windows 网络 OTA。完整步骤、配置格式与限制见 [Mac 与固件管理](flutter-management.md)。
+
 ## 安装与连接
 
 开发 APK 使用本机开发签名。通过 USB 调试安装时：
 
 ```powershell
 adb devices
-adb -s <手机序列号> install -r dist/mobile-flutter/0.2.0/tepy-mobile-0.2.0-arm64.apk
+adb -s <手机序列号> install -r dist/mobile-flutter/0.3.0/tepy-mobile-0.3.0-arm64.apk
 
 adb -s 手机设备ID install -r .\build\app\outputs\flutter-apk\app-release.apk
 ```
@@ -34,7 +36,7 @@ adb -s 手机设备ID install -r .\build\app\outputs\flutter-apk\app-release.apk
 
 手机和 Broker 需要网络互通。手机的 `127.0.0.1` 指手机自身，不能照搬 Windows Qt 连接同机 Broker 时使用的 localhost。手机不需要连接 Mac 的 SSH 或 HTTP 地址；Mac IP 改变后继续通过固定的 Agent ID 查看 MQTT 状态。
 
-“保存并连接”将连接档案交给 Android 系统安全存储；“仅连接”不更新已保存档案。再次启动会恢复输入框，不自动建立连接或执行动作。“清除已保存连接”只删除本应用连接档案。设备 USB 管理口令在“设备”页独立管理。Mac 登录输入不会保存。
+“保存并连接”将连接档案交给 Android 系统安全存储；“仅连接”不更新已保存档案。再次启动会恢复输入框，不自动建立连接或执行动作。“清除已保存连接”只删除本应用连接档案。设备 USB 管理口令在“设备”页独立管理。普通登录输入不会保存；0.3.0 可在“操作”页显式保存 Mac 密码到本机明文 JSON，见下文。
 
 已有保存档案时，可在状态页直接“连接设备”；从后台返回或手动断开后也可使用。这个按钮使用最后一次成功保存的档案，不会误用“仅本次连接”的临时配置。没有保存档案或已清除档案时，先到“连接”页设置并保存。
 
@@ -70,7 +72,7 @@ adb -s 手机设备ID install -r .\build\app\outputs\flutter-apk\app-release.apk
 
 原生接口为 115200 / 8N1，复用 `@tepy:` JSON 协议，每条请求携带管理口令，15 秒回执超时不重发。拔线或重启时若没有收到保存回执，先重新读取配置，再决定下一步。普通启动日志在 Dart 分帧层丢弃，不显示恢复口令。
 
-USB 口令可以安全记忆；本次新 Wi-Fi / MQTT 密码与配对码发送后清理，不存入手机连接档案。进入后台关闭串口。首版暂不提供手机 OTA、ROM 刷机、通用串口终端；USB 管理不会直接输入键盘字符，键盘动作仍走 MQTT。
+USB 口令可以安全记忆；本次新 Wi-Fi / MQTT 密码与配对码发送后清理，不存入手机连接档案。进入后台关闭串口。0.3.0 提供网络 OTA，暂不提供 ROM 刷机、通用串口终端；USB 管理不会直接输入键盘字符，键盘动作仍走 MQTT。
 
 ## 开发与验收
 

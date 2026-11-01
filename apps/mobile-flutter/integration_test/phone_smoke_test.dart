@@ -11,6 +11,8 @@ import 'package:tepy_mobile/domain/commands.dart';
 import 'package:tepy_mobile/domain/connection_profile.dart';
 import 'package:tepy_mobile/main.dart' as app;
 
+import 'native_storage_check.dart';
+
 /// 显式指定手机设备才运行；真实 Broker 部分只订阅，不发布键盘或配置动作。
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
@@ -20,6 +22,7 @@ void main() {
       app.main();
       await tester.pumpAndSettle();
       expect(find.byType(TepyApp), findsOneWidget);
+      await checkNativePasswordStorage();
       const storage = FlutterSecureStorage();
       final key = 'tepy.smoke.${requestId()}', value = requestId();
       try {
@@ -60,6 +63,13 @@ void main() {
           expect(state.device != null, true, reason: 'ESP32 未提供有效状态');
         }
         expect(state.mac != null, true, reason: 'Mac 未提供有效状态');
+        for (var i = 0; i < 60; i++) {
+          final observed = container.read(sessionProvider);
+          if (observed.diagnostics != null && observed.history != null) break;
+          await tester.pump(const Duration(milliseconds: 300));
+        }
+        expect(container.read(sessionProvider).diagnostics, isNotNull);
+        expect(container.read(sessionProvider).history, isNotNull);
         // 旧测试只等到了首次状态，遗漏了连接后一秒的错误重试。
         // 连续观察 45 秒，覆盖多次设备心跳、Mac 心跳和 MQTT keepalive。
         final unstable = <String>[];
@@ -86,8 +96,8 @@ void main() {
         }
         await controller.disconnect();
       }
-      for (final tab in ['操作', '设备', '连接', '状态']) {
-        await tester.tap(find.text(tab).last);
+      for (final tab in ['操作', 'Mac', '设备', '固件', '连接', '状态']) {
+        await tester.tap(find.byKey(ValueKey('nav-$tab')));
         await tester.pumpAndSettle();
         expect(tester.takeException(), isNull);
       }

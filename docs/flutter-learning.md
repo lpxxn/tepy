@@ -113,3 +113,23 @@ protocol_test 检查领域边界；session_test 用 FakeAsync 快进等待，检
 Windows `usb_bridge.cpp` 实现同样的 MethodChannel / EventChannel。SetupAPI 枚举 VID 0x303A 串口，Win32 重叠 I/O 在工作线程读写，窗口消息把回执送回 Flutter 平台线程。关闭事件取消 I/O，lease 忽略旧连接字节，写队列有长度上限。Dart 的分帧、逐请求鉴权、配置校验、超时不重发等规则无需再实现一遍。
 
 先读 Dart 接口，再读原生桥；`windows_smoke_test.dart` 使用随机存储条目和无效测试口令验证原生通信，不读取用户口令或修改设备配置。
+
+## 0.3.0：诊断、文件存储与 OTA 的学习路线
+
+使用步骤见 [Flutter 管理](flutter-management.md)。建议按下面三条独立数据流阅读，不必一次掌握全部页面。
+
+1. **Mac 观察**：`AgentDiagnostics.parse` 将不可信 JSON 转成类型明确的对象；时间租约、Agent ID 与 session 防止旧消息被当成当前结果。`SessionController` 用至多两个 session 的缓存兼容 MQTT 主题到达顺序；`MacScreen` 再按当前会话展示诊断和事件。可选订阅失败是独立事件，不清空原控制连接。
+2. **本地 JSON**：`MacPasswordStore` 是接口，正式实现 `JsonMacPasswordStore` 使用 path_provider 的应用目录；测试传入临时 File。读写使用 async/await，串行 Future 链避免同一实例并发修改，写完临时文件再 rename。文件版本和完整内容先校验，再替换，错误不删除原文件。Windows 和 Android 共用 Dart 实现。
+3. **OTA**：`FirmwareImage` 先用 ByteData 小端读字段，再检查段边界、XOR 和 SHA-256；校验成功复制为不可修改字节。`NativeFirmwarePicker` 只负责选择和读取；`HttpFirmwareClient` 只负责带口令的 HTTP；`FirmwareController` 编排核对设备、上传、等待重启和版本确认。页面负责确认与进度，不直接操作 socket。
+
+### 为什么密码状态不直接保存 String
+
+`MacPasswordState` 只包含元数据、默认选项和文件位置。打开解锁弹窗不会读取已保存密码；用户确认后 `unlockSaved` 才读为 Uint8List，沿用原来的状态检查、单次发送与清理。`preparingInput` 阻止文件读取期间再次开始键盘任务；epoch 使取消或切后台后的读取结果失效。Dart String 与框架可能存在副本，因此这里只保证可控字节缓冲的清零。用户选择的 JSON 本来就是明文，不承诺磁盘加密。
+
+### 为什么 Future.timeout 之后还要 epoch
+
+timeout 只让等待者收到异常，原 Future 仍可能完成。OTA 超时或取消会关闭该次 HTTP Client、增加 epoch、释放互斥租约；每个 await 后检查操作是否仍有效。迟到的上传回调不能把失败页面改回成功。版本轮询只重复 GET，不自动重复 POST，以免中断后再次写固件。
+
+### 如何测试这些边界
+
+`mac_password_test.dart` 用真实临时 JSON 测试手工编辑、错误版本、目标隔离与原文件保留；可控 Future 验证读取中取消不发送。`firmware_test.dart` 用真实本机 HTTP 服务验证 Bearer、Content-Length、原始 bin、禁止重定向；假的重启状态测试会话变化、版本不符、取消与不自动重传。`observations_test.dart` 验证消息顺序、过期和不同会话。原生集成场景另外验证 path_provider 的实际目录和文件替换，不使用用户密码。

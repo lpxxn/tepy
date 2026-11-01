@@ -11,8 +11,13 @@ import 'package:tepy_mobile/app/tepy_app.dart';
 import 'package:tepy_mobile/application/providers.dart';
 import 'package:tepy_mobile/data/platform_info.dart';
 import 'package:tepy_mobile/application/usb_controller.dart';
+import 'package:tepy_mobile/application/mac_password_controller.dart';
+import 'package:tepy_mobile/application/firmware_controller.dart';
 
 import 'support/fakes.dart';
+import 'support/firmware_fixtures.dart';
+
+import 'package:tepy_mobile/data/mac_password_store.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -61,6 +66,9 @@ void main() {
     final container = ProviderContainer(
       overrides: [
         appPlatformProvider.overrideWithValue(platform),
+        macPasswordStoreProvider.overrideWithValue(FakeMacPasswords()),
+        firmwareTargetStoreProvider.overrideWithValue(FakeFirmwareStore()),
+        firmwarePickerProvider.overrideWithValue(FakeFirmwarePicker()),
         clockProvider.overrideWithValue(clock),
         connectionStoreProvider.overrideWithValue(store),
         transportFactoryProvider.overrideWithValue(() => broker),
@@ -324,7 +332,7 @@ void main() {
 
   testWidgets('small phone renders all tabs without overflow', (tester) async {
     final app = await mount(tester, width: 320);
-    for (final title in ['操作', '设备', '连接', '状态']) {
+    for (final title in ['操作', 'Mac', '设备', '固件', '连接', '状态']) {
       await tester.tap(find.text(title).last);
       await tester.pumpAndSettle();
       expect(tester.takeException(), isNull);
@@ -434,8 +442,8 @@ void main() {
       expect(find.byType(NavigationBar), findsNothing);
       expect(find.text('TEPY CONNECT'), findsOneWidget);
       await preview(tester, 'windows-dashboard');
-      for (final tab in ['操作', '设备', '连接']) {
-        await tester.tap(find.text(tab).last);
+      for (final tab in ['操作', 'Mac', '设备', '固件', '连接']) {
+        await tester.tap(find.byKey(ValueKey('nav-$tab')));
         await tester.pumpAndSettle();
         expect(tester.takeException(), isNull);
         await preview(tester, 'windows-$tab');
@@ -479,4 +487,133 @@ void main() {
       await tester.pump();
     },
   );
+  testWidgets('Mac diagnostics and timeline render valid same-session data', (
+    tester,
+  ) async {
+    final app = await mount(tester, width: 1440, height: 1000);
+    await app.container.read(sessionProvider.notifier).connect(testProfile);
+    final clock = app.container.read(clockProvider);
+    app.broker.message(
+      '${testProfile.agentPrefix}/diagnostics',
+      diagnosticJson(clock),
+    );
+    app.broker.message('${testProfile.agentPrefix}/events', historyJson(clock));
+    await tester.tap(find.text('Mac').last);
+    await tester.pumpAndSettle();
+    await preview(tester, 'mac-status');
+    await tester.tap(find.text('诊断'));
+    await tester.pumpAndSettle();
+    expect(find.text('服务采样正常。'), findsOneWidget);
+    await preview(tester, 'mac-diagnostics');
+    await tester.tap(find.text('事件'));
+    await tester.pumpAndSettle();
+    expect(find.text('屏幕解锁'), findsOneWidget);
+    await preview(tester, 'mac-events');
+    await tester.pumpWidget(const SizedBox.shrink());
+    app.dispose();
+    await tester.pump();
+  });
+  testWidgets(
+    'saved password unlock dialog uses metadata without prefilling secret',
+    (tester) async {
+      final app = await mount(tester);
+      final passwords =
+          app.container.read(macPasswordStoreProvider) as FakeMacPasswords;
+      passwords.values[macPasswordTarget(testProfile)] = (
+        'ExampleStoredOnly!',
+        const MacPasswordInfo(),
+      );
+      await app.container
+          .read(macPasswordProvider.notifier)
+          .refresh(testProfile);
+      await app.container.read(sessionProvider.notifier).connect(testProfile);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('操作').last);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('唤醒并输入解锁'));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('useSavedMacPassword')), findsOneWidget);
+      expect(find.byKey(const Key('actionInput')), findsNothing);
+      expect(find.text('ExampleStoredOnly!'), findsNothing);
+      expect(passwords.reads, 0);
+      await preview(tester, 'saved-password-unlock');
+      await tester.tap(find.text('取消').last);
+      await tester.pumpAndSettle();
+      expect(app.broker.sent, isEmpty);
+      expect(passwords.reads, 0);
+      await tester.pumpWidget(const SizedBox.shrink());
+      app.dispose();
+      await tester.pump();
+    },
+  );
+  testWidgets(
+    'Mac password settings saves explicitly and clears current target',
+    (tester) async {
+      final app = await mount(tester, width: 1440, height: 1000);
+      await app.container.read(sessionProvider.notifier).connect(testProfile);
+      await tester.tap(find.byKey(const ValueKey('nav-操作')));
+      await tester.pumpAndSettle();
+      final scrollable = find
+          .descendant(
+            of: find.byKey(const PageStorageKey('controls')),
+            matching: find.byType(Scrollable),
+          )
+          .first;
+      await tester.scrollUntilVisible(
+        find.byKey(const Key('macPasswordSettings')),
+        220,
+        scrollable: scrollable,
+      );
+      await tester.ensureVisible(find.byKey(const Key('macPasswordSettings')));
+      await tester.tap(find.byKey(const Key('macPasswordSettings')));
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.byKey(const Key('savedMacPasswordInput')),
+        'ExampleSettingsOnly!',
+      );
+      await tester.tap(find.byKey(const Key('saveMacPassword')));
+      await tester.pumpAndSettle();
+      final passwords =
+          app.container.read(macPasswordStoreProvider) as FakeMacPasswords;
+      expect(
+        passwords.values[macPasswordTarget(testProfile)]?.$1,
+        'ExampleSettingsOnly!',
+      );
+      expect(find.text('ExampleSettingsOnly!'), findsNothing);
+      await tester.ensureVisible(find.text('清除保存的密码'));
+      await tester.tap(find.text('清除保存的密码'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('清除').last);
+      await tester.pumpAndSettle();
+      expect(passwords.values, isEmpty);
+      expect(app.broker.sent, isEmpty);
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox.shrink());
+      app.dispose();
+      await tester.pump();
+    },
+  );
+  testWidgets('firmware selection is reviewed before enabling an upgrade', (
+    tester,
+  ) async {
+    final app = await mount(tester, width: 1440, height: 1000);
+    (app.container.read(firmwarePickerProvider) as FakeFirmwarePicker).image =
+        testFirmware();
+    await tester.tap(find.byKey(const ValueKey('nav-固件')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('otaPickImage')));
+    await tester.pumpAndSettle();
+    expect(find.text('tepy.bin'), findsOneWidget);
+    expect(find.text('9.9.9'), findsOneWidget);
+    expect(
+      tester
+          .widget<FilledButton>(find.byKey(const Key('otaUpgrade')))
+          .onPressed,
+      isNull,
+    );
+    await preview(tester, 'firmware');
+    await tester.pumpWidget(const SizedBox.shrink());
+    app.dispose();
+    await tester.pump();
+  });
 }

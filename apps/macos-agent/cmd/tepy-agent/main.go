@@ -10,15 +10,19 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"os/signal"
 	"path/filepath"
 	"runtime"
+	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
 	"github.com/lpxxn/tepy/apps/macos-agent/internal/api"
 	"github.com/lpxxn/tepy/apps/macos-agent/internal/config"
+	"github.com/lpxxn/tepy/apps/macos-agent/internal/diagnostics"
 	"github.com/lpxxn/tepy/apps/macos-agent/internal/launchd"
 	"github.com/lpxxn/tepy/apps/macos-agent/internal/model"
 	"github.com/lpxxn/tepy/apps/macos-agent/internal/mqtt"
@@ -26,7 +30,7 @@ import (
 	"github.com/lpxxn/tepy/apps/macos-agent/internal/service"
 )
 
-var version = "0.1.0"
+var version = "0.2.0"
 
 func init() { runtime.LockOSThread() }
 
@@ -39,7 +43,7 @@ func defaultPath() string {
 }
 func execute(args []string) error {
 	if len(args) == 0 {
-		return errors.New("usage: tepy-agent init|validate|probe|run|status|install|uninstall|version [-config path]")
+		return errors.New("usage: tepy-agent init|validate|doctor|probe|run|status|diagnostics|events|install|uninstall|version [-config path]")
 	}
 	if args[0] == "version" {
 		fmt.Println(version)
@@ -51,8 +55,27 @@ func execute(args []string) error {
 	flags := flag.NewFlagSet("tepy-agent", flag.ContinueOnError)
 	flags.SetOutput(io.Discard)
 	path := flags.String("config", defaultPath(), "TOML configuration path")
+	offline := flags.Bool("offline", false, "doctor: skip network probes")
+	after := flags.String("after", "", "events: sequence cursor")
+	session := flags.String("session", "", "events: process session")
+	limit := flags.Int("limit", 50, "events: maximum records")
 	if err := flags.Parse(args[1:]); err != nil || flags.NArg() != 0 {
 		return errors.New("invalid arguments; use -config <TOML path>")
+	}
+	if (args[0] != "doctor" && *offline) || (args[0] != "events" && (*after != "" || *session != "" || *limit != 50)) {
+		return errors.New("flags are not supported by this command")
+	}
+	if args[0] == "doctor" {
+		ctx, cancel := context.WithTimeout(context.Background(), 12*time.Second)
+		defer cancel()
+		report := diagnostics.Doctor(ctx, *path, version, platform.New(), platform.NativeSupported(), *offline)
+		if err := json.NewEncoder(os.Stdout).Encode(report); err != nil {
+			return errors.New("cannot write diagnostic report")
+		}
+		if report.Status == "error" {
+			return errors.New("doctor found errors; see diagnostic check codes")
+		}
+		return nil
 	}
 	if args[0] == "init" {
 		if err := config.WriteInitial(*path); err != nil {
@@ -80,6 +103,18 @@ func execute(args []string) error {
 		return json.NewEncoder(os.Stdout).Encode(app.Store.Get())
 	case "status":
 		return readStatus(cfg)
+	case "diagnostics":
+		return readReport(cfg, "/api/v1/agent/diagnostics")
+	case "events":
+		values := url.Values{}
+		values.Set("limit", strconv.Itoa(*limit))
+		if *after != "" {
+			values.Set("after", *after)
+		}
+		if *session != "" {
+			values.Set("session", *session)
+		}
+		return readReport(cfg, "/api/v1/agent/events?"+values.Encode())
 	case "install":
 		if !platform.NativeSupported() {
 			return errors.New("macOS native build required")
@@ -138,7 +173,7 @@ func run(c config.Config) error {
 	}
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
-	server := api.Server(c.HTTP.Listen, c.HTTP.Token, app.Store.Get)
+	server := api.Server(c.HTTP.Listen, c.HTTP.Token, app.Store.Get, api.Sources{Diagnostics: app.Diagnostics, Events: app.Journal})
 	stopped := make(chan error, 1)
 	go func() {
 		err := server.Serve(listener)
@@ -163,5 +198,48 @@ func main() {
 	if err := execute(os.Args[1:]); err != nil {
 		fmt.Fprintln(os.Stderr, "tepy-agent:", err)
 		os.Exit(1)
+	}
+}
+
+// 复用本机 Bearer 身份读取新接口，不需要将口令放到终端命令行或 URL。
+func readReport(c config.Config, path string) error {
+	host, port, _ := net.SplitHostPort(c.HTTP.Listen)
+	if net.ParseIP(host).IsUnspecified() {
+		host = "127.0.0.1"
+	}
+	request, _ := http.NewRequest(http.MethodGet, "http://"+net.JoinHostPort(host, port)+path, nil)
+	request.Header.Set("Authorization", "Bearer "+c.HTTP.Token)
+	client := &http.Client{Timeout: 3 * time.Second, Transport: &http.Transport{Proxy: nil}, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+	response, err := client.Do(request)
+	if err != nil {
+		return errors.New("cannot reach agent endpoint")
+	}
+	defer response.Body.Close()
+	if response.StatusCode != http.StatusOK {
+		return errors.New("agent request rejected; check service version and event cursor/session")
+	}
+	data, err := io.ReadAll(io.LimitReader(response.Body, 65537))
+	if err != nil || len(data) > 65536 {
+		return errors.New("invalid agent response")
+	}
+	var identity struct {
+		V       int    `json:"v"`
+		AgentID string `json:"agent_id"`
+	}
+	if json.Unmarshal(data, &identity) != nil || identity.V != 1 || identity.AgentID != c.AgentID {
+		return errors.New("invalid agent identity")
+	}
+	if strings.HasPrefix(path, "/api/v1/agent/events") {
+		var page model.EventPage
+		if json.Unmarshal(data, &page) != nil || page.Capacity != model.EventCapacity || len(page.Events) > model.EventCapacity {
+			return errors.New("invalid event response")
+		}
+		return json.NewEncoder(os.Stdout).Encode(page)
+	} else {
+		var report model.DiagnosticReport
+		if json.Unmarshal(data, &report) != nil || report.Source != "live" || len(report.Checks) > 32 {
+			return errors.New("invalid diagnostic response")
+		}
+		return json.NewEncoder(os.Stdout).Encode(report)
 	}
 }

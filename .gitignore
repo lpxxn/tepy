@@ -10,6 +10,8 @@ __pycache__/
 *.pyc
 *.local.json
 *.local.toml
+mac-passwords.json
+mac-passwords.json.tmp
 apps/macos-agent/vendor/
 apps/macos-agent/build/
 .env

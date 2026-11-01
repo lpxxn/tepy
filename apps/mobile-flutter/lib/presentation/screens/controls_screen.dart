@@ -6,10 +6,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../application/providers.dart';
+import '../../application/mac_password_controller.dart';
+import '../../data/mac_password_store.dart';
 import '../../application/session_state.dart';
 import '../../app/tepy_app.dart';
 import '../../domain/commands.dart';
 import '../widgets/common.dart';
+import '../widgets/mac_password_settings.dart';
 import '../widgets/secret_text_field.dart';
 
 class ControlsScreen extends ConsumerWidget {
@@ -24,7 +27,10 @@ class ControlsScreen extends ConsumerWidget {
     // 密码只存在于这次 Dialog 和任务中，不放进 Provider 的可展示状态。
     final result = await showDialog<_InputResult>(
       context: context,
-      builder: (_) => _InputDialog(unlock: unlock),
+      builder: (_) => _InputDialog(
+        unlock: unlock,
+        saved: ref.read(macPasswordProvider).info,
+      ),
     );
     if (result == null) return;
     if (!context.mounted) {
@@ -33,13 +39,20 @@ class ControlsScreen extends ConsumerWidget {
     }
     final controller = ref.read(sessionProvider.notifier);
     if (unlock) {
-      await controller.unlock(
-        result.bytes,
-        enter: result.enter,
-        waitSeconds: result.waitSeconds,
-      );
+      if (result.useSaved) {
+        await controller.unlockSaved(
+          enter: result.enter,
+          waitSeconds: result.waitSeconds,
+        );
+      } else {
+        await controller.unlock(
+          result.bytes!,
+          enter: result.enter,
+          waitSeconds: result.waitSeconds,
+        );
+      }
     } else {
-      await controller.typeText(result.bytes, enter: result.enter);
+      await controller.typeText(result.bytes!, enter: result.enter);
     }
   }
 
@@ -57,7 +70,7 @@ class ControlsScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final state = ref.watch(sessionProvider);
     final phase = switch (state.phase) {
-      JobPhase.idle => '等待操作',
+      JobPhase.idle => state.preparingInput ? '读取已保存密码' : '等待操作',
       JobPhase.waking => '发送唤醒',
       JobPhase.sending => '发送按键',
       JobPhase.waitingForMac => '等待 Mac 就绪',
@@ -180,13 +193,13 @@ class ControlsScreen extends ConsumerWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              if (state.busy) ...[
+              if (state.busy || state.preparingInput) ...[
                 const LinearProgressIndicator(),
                 const SizedBox(height: 16),
               ],
               DetailRow('HID 回执', state.hidResult),
               DetailRow('Mac 反馈', state.macResult),
-              if (state.busy)
+              if (state.busy || state.preparingInput)
                 Padding(
                   padding: const EdgeInsets.only(top: 12),
                   child: OutlinedButton.icon(
@@ -209,21 +222,30 @@ class ControlsScreen extends ConsumerWidget {
           '请确认 Mac 的输入焦点和美式 ABC 布局。未知状态不等于解锁；取消无法撤回已经提交的按键。',
           style: TextStyle(fontSize: 12, color: muted),
         ),
+        const SizedBox(height: 20),
+        const MacPasswordSettings(),
       ],
     );
   }
 }
 
 final class _InputResult {
-  const _InputResult(this.bytes, this.enter, this.waitSeconds);
-  final Uint8List bytes;
+  const _InputResult(
+    this.bytes,
+    this.enter,
+    this.waitSeconds, {
+    this.useSaved = false,
+  });
+  final Uint8List? bytes;
+  final bool useSaved;
   final bool enter;
   final int waitSeconds;
 }
 
 /// Dialog 自己管理输入框、开关和 Slider，这些临时状态不需要全局 Riverpod。
 class _InputDialog extends StatefulWidget {
-  const _InputDialog({required this.unlock});
+  const _InputDialog({required this.unlock, this.saved});
+  final MacPasswordInfo? saved;
   final bool unlock;
   @override
   State<_InputDialog> createState() => _InputDialogState();
@@ -232,12 +254,17 @@ class _InputDialog extends StatefulWidget {
 class _InputDialogState extends State<_InputDialog>
     with WidgetsBindingObserver {
   final _text = TextEditingController();
-  bool _enter = false;
+  bool _enter = false, _useSaved = false;
   double _wait = 3;
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _useSaved = widget.unlock && widget.saved != null;
+    if (_useSaved) {
+      _enter = widget.saved!.enter;
+      _wait = widget.saved!.waitSeconds.toDouble();
+    }
   }
 
   @override
@@ -268,19 +295,33 @@ class _InputDialogState extends State<_InputDialog>
         children: [
           Text(
             widget.unlock
-                ? '确认 Mac 密码框焦点。本次内容不保存、不记录，未知状态不会继续输入。'
+                ? (_useSaved
+                      ? '确认 Mac 密码框焦点。将使用已保存密码，未知状态不会继续输入。'
+                      : '确认 Mac 密码框焦点。本次输入不保存，未知状态不会继续输入。')
                 : '内容隐藏显示，只支持 1–512 个可打印 ASCII 字符。',
             style: const TextStyle(fontSize: 13, color: Colors.blueGrey),
           ),
           const SizedBox(height: 18),
-          SecretTextField(
-            inputKey: const Key('actionInput'),
-            controller: _text,
-            maxLength: 512,
-            decoration: InputDecoration(
-              labelText: widget.unlock ? '本次 Mac 密码' : '本次输入内容',
+          if (widget.unlock && widget.saved != null)
+            SwitchListTile(
+              key: const Key('useSavedMacPassword'),
+              contentPadding: EdgeInsets.zero,
+              title: const Text('使用已保存的密码', style: TextStyle(fontSize: 14)),
+              value: _useSaved,
+              onChanged: (v) => setState(() {
+                _useSaved = v;
+                _text.clear();
+              }),
             ),
-          ),
+          if (!_useSaved)
+            SecretTextField(
+              inputKey: const Key('actionInput'),
+              controller: _text,
+              maxLength: 512,
+              decoration: InputDecoration(
+                labelText: widget.unlock ? '本次 Mac 密码' : '本次输入内容',
+              ),
+            ),
           SwitchListTile(
             contentPadding: EdgeInsets.zero,
             title: const Text('输入后按回车', style: TextStyle(fontSize: 14)),
@@ -311,9 +352,14 @@ class _InputDialogState extends State<_InputDialog>
       FilledButton(
         key: const Key('confirmInput'),
         onPressed: () {
-          final bytes = Uint8List.fromList(utf8.encode(_text.text));
+          final bytes = _useSaved
+              ? null
+              : Uint8List.fromList(utf8.encode(_text.text));
           _text.clear();
-          Navigator.pop(context, _InputResult(bytes, _enter, _wait.round()));
+          Navigator.pop(
+            context,
+            _InputResult(bytes, _enter, _wait.round(), useSaved: _useSaved),
+          );
         },
         child: const Text('执行一次'),
       ),

@@ -1,5 +1,6 @@
 import '../domain/connection_profile.dart';
 import '../domain/snapshots.dart';
+import '../domain/agent_observations.dart';
 
 enum LinkState { offline, connecting, online, reconnecting }
 
@@ -17,6 +18,11 @@ final class SessionState implements AppClock {
     this.phase = JobPhase.idle,
     this.device,
     this.mac,
+    this.observationError = '',
+    this.diagnostics,
+    this.history,
+    this.maintenance = false,
+    this.preparingInput = false,
     this.nowMs = 0,
     this.tickMs = 0,
     this.awaitingPuback = false,
@@ -34,6 +40,10 @@ final class SessionState implements AppClock {
   final JobPhase phase;
   final DeviceSnapshot? device;
   final MacSnapshot? mac;
+  final String observationError;
+  final AgentDiagnostics? diagnostics;
+  final AgentHistory? history;
+  final bool maintenance, preparingInput;
   @override
   final int nowMs;
   @override
@@ -43,6 +53,8 @@ final class SessionState implements AppClock {
   bool get canAct =>
       link == LinkState.online &&
       !busy &&
+      !maintenance &&
+      !preparingInput &&
       !awaitingPuback &&
       device?.ready(this) == true &&
       device?.busy == false;
@@ -58,6 +70,13 @@ final class SessionState implements AppClock {
     JobPhase? phase,
     DeviceSnapshot? device,
     MacSnapshot? mac,
+    String? observationError,
+    AgentDiagnostics? diagnostics,
+    AgentHistory? history,
+    bool clearDiagnostics = false,
+    bool clearHistory = false,
+    bool? maintenance,
+    bool? preparingInput,
     bool clearDevice = false,
     bool clearMac = false,
     int? nowMs,
@@ -78,6 +97,13 @@ final class SessionState implements AppClock {
     phase: phase ?? this.phase,
     device: clearDevice ? null : (device ?? this.device),
     mac: clearMac ? null : (mac ?? this.mac),
+    observationError: observationError ?? this.observationError,
+    diagnostics: clearDiagnostics || clearMac
+        ? null
+        : (diagnostics ?? this.diagnostics),
+    history: clearHistory || clearMac ? null : (history ?? this.history),
+    maintenance: maintenance ?? this.maintenance,
+    preparingInput: preparingInput ?? this.preparingInput,
     nowMs: nowMs ?? this.nowMs,
     tickMs: tickMs ?? this.tickMs,
     awaitingPuback: awaitingPuback ?? this.awaitingPuback,

@@ -8,6 +8,9 @@
 | flutter_riverpod | 3.4.3 | [MIT / 官方仓库](https://github.com/rrousselGit/riverpod) |
 | mqtt_client | 10.14.0 | [BSD-3-Clause / 官方仓库](https://github.com/shamblett/mqtt_client) |
 | flutter_secure_storage | 11.2.0 | [BSD-3-Clause / 官方仓库](https://github.com/juliansteenbakker/flutter_secure_storage) |
+| file_selector | 1.1.0 | [BSD-3-Clause / Flutter packages](https://github.com/flutter/packages/tree/main/packages/file_selector) |
+| path_provider | 2.1.6 | [BSD-3-Clause / Flutter packages](https://github.com/flutter/packages/tree/main/packages/path_provider) |
+| crypto | 3.0.8 | [BSD-3-Clause / Dart core](https://github.com/dart-lang/core/tree/main/pkgs/crypto) |
 | usb-serial-for-android | 3.11.0 | [MIT / 官方仓库](https://github.com/mik3y/usb-serial-for-android) |
 
 USB 驱动作为固定版本 Android 库从 JitPack 获取，Tepy 没有修改其源码。许可原文保存在 `third_party/usb-serial-LICENSE.txt`。官方 `3.11.0` 标签源码归档 SHA-256 为 `9fc12819db958e0e83bc3ec276600758e42e049ec528341c43954768a0793af4`；本地发布目录附该归档。获取地址为 `https://codeload.github.com/mik3y/usb-serial-for-android/tar.gz/refs/tags/3.11.0`。

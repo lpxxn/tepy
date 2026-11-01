@@ -46,3 +46,7 @@ app.*.map.json
 
 # Widget Preview related
 .widget_preview/
+
+# Optional plaintext Mac login configuration belongs to app data, not source.
+mac-passwords.json
+mac-passwords.json.tmp

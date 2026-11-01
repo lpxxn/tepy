@@ -10,7 +10,9 @@ import '../data/mqtt_transport.dart';
 import '../domain/commands.dart';
 import '../domain/connection_profile.dart';
 import '../domain/snapshots.dart';
+import '../domain/agent_observations.dart';
 import 'providers.dart';
+import 'mac_password_controller.dart';
 import 'session_state.dart';
 
 /// 连接、消息校验与单次键盘任务的协调者。Widget 只表达用户意图，
@@ -26,9 +28,12 @@ class SessionController extends Notifier<SessionState> {
       _wantConnection = false,
       _dialing = false;
   int _connectionEpoch = 0, _jobEpoch = 0, _retrySeconds = 1;
+  int _savedUseEpoch = 0;
   int? _packetId;
   _Pending? _pending;
   Uint8List? _secret;
+  final _diagnosticCache = <String, AgentDiagnostics>{};
+  final _historyCache = <String, AgentHistory>{};
   String? _jobSession;
   Completer<void>? _cancelSignal;
 
@@ -166,10 +171,13 @@ class SessionController extends Notifier<SessionState> {
     }
     _dialing = true;
     final epoch = _connectionEpoch;
+    _diagnosticCache.clear();
+    _historyCache.clear();
     state = state.copyWith(
       link: LinkState.connecting,
       clearDevice: true,
       clearMac: true,
+      observationError: '',
       message: '正在连接 MQTT 并订阅状态…',
       isError: false,
     );
@@ -211,6 +219,8 @@ class SessionController extends Notifier<SessionState> {
   /// Android 切入后台也走这条路径。回来只恢复表单，不恢复旧任务或自动输入。
   Future<void> disconnect({bool background = false}) async {
     _wantConnection = false;
+    _diagnosticCache.clear();
+    _historyCache.clear();
     ++_connectionEpoch;
     _dialing = false;
     _retryTimer?.cancel();
@@ -259,6 +269,10 @@ class SessionController extends Notifier<SessionState> {
           message: 'MQTT 已连接，等待设备和 Mac 状态。',
           isError: false,
         );
+      case BrokerObservationDenied():
+        state = state.copyWith(
+          observationError: 'Broker 未授权诊断或事件主题，请检查订阅 ACL。原状态和控制连接仍可使用。',
+        );
       case BrokerDisconnected():
         _lost();
       case BrokerPuback(:final packetId):
@@ -273,10 +287,18 @@ class SessionController extends Notifier<SessionState> {
   }
 
   void _message(BrokerMessage event) {
-    if (!_wantConnection || event.bytes.length > 16384) return;
+    if (!_wantConnection ||
+        event.bytes.length >
+            (event.topic == '${state.profile.agentPrefix}/events'
+                ? 65536
+                : 16384)) {
+      return;
+    }
     final profile = state.profile;
     if (event.topic == '${profile.agentPrefix}/availability') {
       if (ascii.decode(event.bytes, allowInvalid: true) == 'offline') {
+        _diagnosticCache.clear();
+        _historyCache.clear();
         state = state.copyWith(clearMac: true);
       }
       return;
@@ -323,7 +345,48 @@ class SessionController extends Notifier<SessionState> {
           !(old != null &&
               old.session == mac.session &&
               mac.sequence <= old.sequence)) {
-        state = state.copyWith(mac: mac);
+        final diagnostics = _diagnosticCache[mac.session];
+        final freshDiagnostics =
+            diagnostics != null && diagnostics.fresh(_clock)
+            ? diagnostics
+            : null;
+        state = state.copyWith(
+          mac: mac,
+          diagnostics: freshDiagnostics,
+          history: _historyCache[mac.session],
+          clearDiagnostics: freshDiagnostics == null,
+          clearHistory: !_historyCache.containsKey(mac.session),
+        );
+      }
+    } else if (profile.agentId.isNotEmpty &&
+        event.topic == '${profile.agentPrefix}/diagnostics') {
+      final report = AgentDiagnostics.parse(json, profile.agentId, _clock);
+      if (report != null) {
+        final old = _diagnosticCache[report.session];
+        if (old == null || report.observedAt > old.observedAt) {
+          _diagnosticCache[report.session] = report;
+          if (_diagnosticCache.length > 2) {
+            _diagnosticCache.remove(_diagnosticCache.keys.first);
+          }
+          if (state.mac?.session == report.session) {
+            state = state.copyWith(diagnostics: report);
+          }
+        }
+      }
+    } else if (profile.agentId.isNotEmpty &&
+        event.topic == '${profile.agentPrefix}/events') {
+      final history = AgentHistory.parse(json, profile.agentId);
+      if (history != null) {
+        final old = _historyCache[history.session];
+        if (old == null || history.latestSequence > old.latestSequence) {
+          _historyCache[history.session] = history;
+          if (_historyCache.length > 2) {
+            _historyCache.remove(_historyCache.keys.first);
+          }
+          if (state.mac?.session == history.session) {
+            state = state.copyWith(history: history);
+          }
+        }
       }
     }
   }
@@ -335,6 +398,7 @@ class SessionController extends Notifier<SessionState> {
       tickMs: _clock.tickMs,
       clearDevice: state.device?.fresh(_clock) == false,
       clearMac: state.mac?.fresh(_clock) == false,
+      clearDiagnostics: state.diagnostics?.fresh(_clock) == false,
     );
     _checkRunningJob();
   }
@@ -370,19 +434,26 @@ class SessionController extends Notifier<SessionState> {
 
   void _invalidateJob(String message) {
     ++_jobEpoch;
+    ++_savedUseEpoch;
     wipe(_secret);
     _secret = null;
     _jobSession = null;
     if (_cancelSignal?.isCompleted == false) _cancelSignal!.complete();
     _failPending(const AppFailure('本次操作已取消。'));
     if (!_disposed) {
-      state = state.copyWith(phase: JobPhase.idle, message: message);
+      state = state.copyWith(
+        phase: JobPhase.idle,
+        preparingInput: false,
+        message: message,
+      );
     }
     // 不清 PUBACK 定时器：即使用户取消等待，未确认的网络包仍受六秒上限约束。
   }
 
   void cancel() {
-    if (state.busy) _invalidateJob('后续步骤已取消；已提交的按键无法撤回。');
+    if (state.busy || state.preparingInput) {
+      _invalidateJob('后续步骤已取消；已提交的按键无法撤回。');
+    }
   }
 
   Future<void> _operate({
@@ -395,6 +466,8 @@ class SessionController extends Notifier<SessionState> {
       validate?.call();
       if (input != null) validateText(input);
       if (state.busy ||
+          state.maintenance ||
+          state.preparingInput ||
           _pending != null ||
           _packetId != null ||
           state.link != LinkState.online ||
@@ -530,6 +603,49 @@ class SessionController extends Notifier<SessionState> {
       state = state.copyWith(message: '按键发送完成。');
     },
   );
+
+  /// 只在用户点击执行后读取文件。异步读取期间取消、切换目标或断线均阻止发送。
+  Future<void> unlockSaved({bool enter = true, int waitSeconds = 3}) async {
+    if (!state.canAct) return;
+    final profile = state.profile,
+        connection = _connectionEpoch,
+        use = ++_savedUseEpoch;
+    state = state.copyWith(preparingInput: true);
+    Uint8List? bytes;
+    try {
+      bytes = await ref.read(macPasswordStoreProvider).read(profile);
+      if (_disposed ||
+          use != _savedUseEpoch ||
+          connection != _connectionEpoch ||
+          !identical(profile, state.profile)) {
+        return;
+      }
+      state = state.copyWith(preparingInput: false);
+      if (bytes == null) throw const AppFailure('当前目标没有保存密码，请先在键盘控制中设置。');
+      await unlock(bytes, enter: enter, waitSeconds: waitSeconds);
+    } on AppFailure catch (e) {
+      if (!_disposed && use == _savedUseEpoch) {
+        state = state.copyWith(message: e.message, isError: true);
+      }
+    } finally {
+      wipe(bytes);
+      if (!_disposed && use == _savedUseEpoch) {
+        state = state.copyWith(preparingInput: false);
+      }
+    }
+  }
+
+  bool setMaintenance(bool active) {
+    if (active &&
+        (state.busy ||
+            state.preparingInput ||
+            state.awaitingPuback ||
+            state.maintenance)) {
+      return false;
+    }
+    state = state.copyWith(maintenance: active);
+    return true;
+  }
 
   Future<void> unlock(
     Uint8List input, {
